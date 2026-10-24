@@ -1,0 +1,8 @@
+{
+  "name": "glow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Glow — Christmas light displays across North Carolina (letsglowwww.com)",
+  "type": "module",
+  "engines": { "node": ">=20" }
+}

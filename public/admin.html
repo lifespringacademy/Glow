@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Glow admin</title>
+<meta name="theme-color" content="#0B1220">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<style>
+:root{--night:#0B1220;--panel:#111A2E;--line:#24304A;--snow:#F4F6FB;--frost:#B8C2D8;--dim:#8E9AB5;--amber:#FFB347;--red:#FF4D5E;--green:#2FD08A;--gold:#FFD24A;--copper:#FFB27A;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--night);color:var(--snow);font-family:"Outfit",system-ui,sans-serif;font-size:15px;line-height:1.45;padding:16px max(16px,env(safe-area-inset-right,0px)) 60px max(16px,env(safe-area-inset-left,0px))}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+[hidden]{display:none!important}
+.wrap{max-width:1100px;margin:0 auto;display:grid;gap:16px}
+h1{font-family:"Fredoka",system-ui,sans-serif;font-weight:700;font-size:30px;margin:0}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:8px 14px;font-weight:600;color:var(--frost)}
+.tabs button[aria-pressed="true"]{background:var(--snow);color:var(--night)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:8px}
+.meta{display:flex;flex-wrap:wrap;gap:6px 12px;color:var(--frost);font-size:13px;align-items:center}
+.badge{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:6px;padding:3px 7px}
+.b-pend{background:#3A2F0C;color:var(--amber)} .b-ok{background:#0F3326;color:var(--green)} .b-no{background:#3B1520;color:#FF98A2}
+.b-feat{background:#3A2F0C;color:var(--gold)} .b-spot{background:#3A2012;color:var(--copper)} .b-paid{background:#0F3326;color:var(--green)}
+.btn{border:1px solid var(--line);background:var(--night);border-radius:10px;padding:8px 12px;font-weight:600;font-size:14px;color:var(--snow);text-decoration:none}
+.btn.primary{background:var(--amber);color:#2A1700;border-color:var(--amber)}
+.btn.danger{border-color:#7A2A35;color:#FF98A2}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.field{display:grid;gap:4px;min-width:0}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-weight:700}
+input[type=text],input[type=password],input[type=search],input[type=date],input[type=number],select,textarea{background:var(--night);border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%;min-width:0}
+textarea{min-height:64px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.checks{display:flex;flex-wrap:wrap;gap:8px 16px}
+.checks label{display:flex;gap:6px;align-items:center;font-size:14px}
+.err{color:#FF98A2;font-size:14px} .note{font-size:12px;color:var(--dim)}
+.ok{color:var(--green);font-size:14px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-top:1px solid var(--line);vertical-align:top}
+th{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.06em}
+.tablebox{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.backdrop{position:fixed;inset:0;background:#02060fcc;display:flex;align-items:center;justify-content:center;padding:16px;z-index:50}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;max-width:720px;width:100%;max-height:92vh;overflow:auto;padding:18px;display:grid;gap:12px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--snow);color:var(--night);font-weight:600;padding:10px 16px;border-radius:999px;z-index:60}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="meta" style="justify-content:space-between"><h1>Glow admin</h1><a class="btn" href="/">Open the app</a></div>
+
+  <form class="card" id="login" style="max-width:420px">
+    <div class="field"><label class="label" for="pw">Admin password</label><input type="password" id="pw" autocomplete="current-password"></div>
+    <div class="actions"><button class="btn primary" type="submit">Sign in</button></div>
+    <div id="loginMsg"></div>
+    <div class="note">This is the ADMIN_KEY you set in Vercel.</div>
+  </form>
+
+  <div id="app" hidden style="display:grid;gap:16px">
+    <div class="tabs" id="tabs">
+      <button type="button" data-t="pending" aria-pressed="true">Waiting for review <span id="pendCount"></span></button>
+      <button type="button" data-t="all" aria-pressed="false">All displays</button>
+      <button type="button" data-t="add" aria-pressed="false">Add a display</button>
+      <button type="button" data-t="teams" aria-pressed="false">Hunt teams</button>
+      <button type="button" id="signout">Sign out</button>
+    </div>
+    <div id="view"></div>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const TYPES={home:"Home display",hood:"Neighborhood",drive:"Drive-thru",walk:"Walk-through",music:"Music light show",town:"Town event"};
+const AMEN=["Santa visits","Hot cocoa","Wheelchair friendly","Stroller friendly","Pets welcome","Restrooms","Synced to FM"];
+const PLANS={home:"Home (free)",spot:"Home + Spotlight",basic:"Business basic",featured:"Featured business"};
+const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+let KEY=""; try{ KEY=sessionStorage.getItem("glow-admin")||""; }catch(e){}
+let tab="pending", rows=[], search="";
+
+async function api(path,opts={}){
+  const r=await fetch(path,{method:opts.method||"GET",headers:{"Content-Type":"application/json","x-admin-key":KEY},body:opts.body?JSON.stringify(opts.body):undefined});
+  let d={}; try{ d=await r.json(); }catch(e){}
+  if(!r.ok) throw Object.assign(new Error(d.error||"Something went wrong."),{status:r.status});
+  return d;
+}
+function toast(m){ document.querySelectorAll(".toast").forEach(t=>t.remove()); const t=document.createElement("div"); t.className="toast"; t.textContent=m; document.body.appendChild(t); setTimeout(()=>t.remove(),2400); }
+
+$("#login").onsubmit=async e=>{ e.preventDefault(); KEY=$("#pw").value; try{ await api("/api/admin?view=pending"); try{ sessionStorage.setItem("glow-admin",KEY); }catch(_){} start(); }catch(err){ $("#loginMsg").innerHTML=`<div class="err">${esc(err.message)}</div>`; } };
+$("#signout").onclick=()=>{ try{ sessionStorage.removeItem("glow-admin"); }catch(e){} location.reload(); };
+$("#tabs").onclick=e=>{ const b=e.target.closest("[data-t]"); if(!b) return; tab=b.dataset.t; document.querySelectorAll("#tabs [data-t]").forEach(x=>x.setAttribute("aria-pressed",x===b)); load(); };
+
+function start(){ $("#login").hidden=true; $("#app").hidden=false; load(); }
+async function load(){
+  const v=$("#view"); v.innerHTML=`<div class="note">Loading…</div>`;
+  try{
+    if(tab==="teams"){ const r=await api("/api/admin?view=teams"); return renderTeams(r.teams); }
+    if(tab==="add"){ return renderForm(null); }
+    const r=await api("/api/admin?view="+(tab==="pending"?"pending":"all")); rows=r.displays;
+    if(tab==="pending"){ $("#pendCount").textContent=rows.length?`(${rows.length})`:""; renderPending(); } else renderAll();
+  }catch(err){ if(err.status===401){ try{ sessionStorage.removeItem("glow-admin"); }catch(e){} location.reload(); } v.innerHTML=`<div class="err">${esc(err.message)}</div>`; }
+}
+function badges(d){ return `<span class="badge ${d.status==="approved"?"b-ok":d.status==="pending"?"b-pend":"b-no"}">${d.status}</span>${d.featured?`<span class="badge b-feat">Featured</span>`:""}${d.spotlight?`<span class="badge b-spot">Spotlight</span>`:""}${d.paid?`<span class="badge b-paid">Paid</span>`:""}${d.lights_out?`<span class="badge b-no">Lights off</span>`:""}`; }
+function renderPending(){
+  const v=$("#view");
+  if(!rows.length){ v.innerHTML=`<div class="card"><b>Nothing waiting for review.</b><div class="note">New submissions show up here.</div></div>`; return; }
+  v.innerHTML=rows.map(d=>`<div class="card">
+    <div class="meta">${badges(d)}<span>${esc(TYPES[d.type]||d.type)}</span><span>${esc(PLANS[d.plan]||d.plan)}${(d.plan==="spot"||d.plan==="featured")&&!d.paid?" · not paid yet":""}</span></div>
+    <b style="font-size:17px">${esc(d.name)}</b>
+    <div class="meta"><span>${esc(d.street||"")}, ${esc(d.city)} ${esc(d.zip||"")}</span><a href="https://www.google.com/maps?q=${d.lat},${d.lon}" target="_blank" rel="noopener">Check on map</a><span>${esc(d.submitter_email||"")}</span></div>
+    <div class="meta"><span>${esc(d.price||"")}</span><span>${esc(d.hours||"")}</span><span>${esc(d.start_date||"")} → ${esc(d.end_date||"")}</span>${d.fm?`<span>FM ${esc(d.fm)}</span>`:""}${d.url?`<a href="${esc(d.url)}" target="_blank" rel="noopener">Website</a>`:""}</div>
+    ${d.description?`<div style="color:var(--frost)">${esc(d.description)}</div>`:""}
+    <div class="actions"><button class="btn primary" data-approve="${d.id}">Approve</button><button class="btn" data-edit="${d.id}">Edit first</button><button class="btn danger" data-reject="${d.id}">Reject</button></div>
+  </div>`).join("");
+  bindRowButtons();
+}
+function renderAll(){
+  const v=$("#view");
+  const q=search.toLowerCase();
+  const list=rows.filter(d=>!q||[d.name,d.city,d.street,d.submitter_email].join(" ").toLowerCase().includes(q));
+  v.innerHTML=`<div class="field" style="max-width:360px"><label class="label" for="srch">Search</label><input type="search" id="srch" value="${esc(search)}" placeholder="Name, city, email"></div>
+  <div class="tablebox" style="margin-top:12px"><table><thead><tr><th>Display</th><th>City</th><th>Status</th><th>Quick changes</th><th></th></tr></thead><tbody>
+  ${list.map(d=>`<tr><td><b>${esc(d.name)}</b><div class="note">${esc(TYPES[d.type]||"")} · ${esc(PLANS[d.plan]||"")}</div></td><td>${esc(d.city)}</td><td><div class="meta">${badges(d)}</div></td>
+  <td><div class="actions"><button class="btn" data-toggle="featured" data-id="${d.id}">${d.featured?"Unfeature":"Feature"}</button><button class="btn" data-toggle="spotlight" data-id="${d.id}">${d.spotlight?"Remove spotlight":"Spotlight"}</button><button class="btn" data-toggle="lights_out" data-id="${d.id}">${d.lights_out?"Lights back on":"Lights off"}</button></div></td>
+  <td><button class="btn" data-edit="${d.id}">Edit</button></td></tr>`).join("")||`<tr><td colspan="5" class="note">No displays.</td></tr>`}
+  </tbody></table></div>`;
+  $("#srch").oninput=e=>{ search=e.target.value; const pos=e.target.selectionStart; renderAll(); const s=$("#srch"); s.focus(); s.setSelectionRange(pos,pos); };
+  bindRowButtons();
+}
+function bindRowButtons(){
+  const v=$("#view");
+  v.querySelectorAll("[data-approve]").forEach(b=>b.onclick=()=>act({action:"approve",id:+b.dataset.approve},"Approved. It's on the map."));
+  v.querySelectorAll("[data-reject]").forEach(b=>b.onclick=()=>{ if(b.dataset.sure) return act({action:"reject",id:+b.dataset.reject},"Rejected"); b.dataset.sure=1; b.textContent="Tap again to reject"; });
+  v.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{ const d=rows.find(x=>x.id===+b.dataset.edit); openEdit(d); });
+  v.querySelectorAll("[data-toggle]").forEach(b=>b.onclick=()=>{ const d=rows.find(x=>x.id===+b.dataset.id); const k=b.dataset.toggle; act({action:"update",id:d.id,fields:{[k]:!d[k]}},"Saved"); });
+}
+async function act(body,msg){ try{ await api("/api/admin",{method:"POST",body}); toast(msg); load(); }catch(e){ toast(e.message); } }
+
+function formHtml(d){
+  d=d||{type:"home",cost:"free",plan:"home",tags:[],days:[]};
+  return `<div class="grid">
+    <div class="field"><label class="label" for="e_name">Name</label><input type="text" id="e_name" value="${esc(d.name)}"></div>
+    <div class="field"><label class="label" for="e_type">Type</label><select id="e_type">${Object.entries(TYPES).map(([k,v])=>`<option value="${k}" ${d.type===k?"selected":""}>${v}</option>`).join("")}</select></div>
+    <div class="field"><label class="label" for="e_street">Street</label><input type="text" id="e_street" value="${esc(d.street)}"></div>
+    <div class="field"><label class="label" for="e_city">City</label><input type="text" id="e_city" value="${esc(d.city)}"></div>
+    <div class="field"><label class="label" for="e_zip">ZIP</label><input type="text" id="e_zip" value="${esc(d.zip)}"></div>
+    <div class="field"><label class="label" for="e_cost">Cost</label><select id="e_cost"><option value="free" ${d.cost==="free"?"selected":""}>Free</option><option value="paid" ${d.cost==="paid"?"selected":""}>Paid</option></select></div>
+    <div class="field"><label class="label" for="e_price">Price text</label><input type="text" id="e_price" value="${esc(d.price)}"></div>
+    <div class="field"><label class="label" for="e_hours">Hours</label><input type="text" id="e_hours" value="${esc(d.hours)}"></div>
+    <div class="field"><label class="label" for="e_start">First night</label><input type="date" id="e_start" value="${esc(d.start_date)}"></div>
+    <div class="field"><label class="label" for="e_end">Last night</label><input type="date" id="e_end" value="${esc(d.end_date)}"></div>
+    <div class="field"><label class="label" for="e_fm">FM station</label><input type="text" id="e_fm" value="${esc(d.fm)}"></div>
+    <div class="field"><label class="label" for="e_url">Website / tickets</label><input type="text" id="e_url" value="${esc(d.url)}"></div>
+    <div class="field"><label class="label" for="e_plan">Plan</label><select id="e_plan">${Object.entries(PLANS).map(([k,v])=>`<option value="${k}" ${d.plan===k?"selected":""}>${v}</option>`).join("")}</select></div>
+    <div class="field"><label class="label" for="e_lat">Latitude (optional)</label><input type="text" id="e_lat" value="${d.lat??""}"></div>
+    <div class="field"><label class="label" for="e_lon">Longitude (optional)</label><input type="text" id="e_lon" value="${d.lon??""}"></div>
+  </div>
+  <div class="field"><label class="label" for="e_desc">Description</label><textarea id="e_desc">${esc(d.description)}</textarea></div>
+  <div class="field"><span class="label">Extras</span><div class="checks">${AMEN.map((a,i)=>`<label><input type="checkbox" class="e_tag" value="${esc(a)}" ${(d.tags||[]).includes(a)?"checked":""}>${esc(a)}</label>`).join("")}</div></div>
+  <div class="field"><span class="label">Open nights (leave all unchecked for every night)</span><div class="checks">${DAYS.map((n,i)=>`<label><input type="checkbox" class="e_day" value="${i}" ${(d.days||[]).includes(i)?"checked":""}>${n}</label>`).join("")}</div></div>
+  <div class="checks"><label><input type="checkbox" id="e_featured" ${d.featured?"checked":""}>Featured</label><label><input type="checkbox" id="e_spotlight" ${d.spotlight?"checked":""}>Spotlight (Homeowner Pick)</label><label><input type="checkbox" id="e_paid" ${d.paid?"checked":""}>Paid</label><label><input type="checkbox" id="e_lights" ${d.lights_out?"checked":""}>Lights off for now</label></div>`;
+}
+function readForm(){
+  const v=id=>$(id).value.trim();
+  const f={name:v("#e_name"),type:$("#e_type").value,street:v("#e_street"),city:v("#e_city"),zip:v("#e_zip"),cost:$("#e_cost").value,price:v("#e_price"),hours:v("#e_hours"),start_date:$("#e_start").value,end_date:$("#e_end").value,fm:v("#e_fm"),url:v("#e_url"),plan:$("#e_plan").value,description:v("#e_desc"),
+    tags:[...document.querySelectorAll(".e_tag:checked")].map(x=>x.value),days:[...document.querySelectorAll(".e_day:checked")].map(x=>+x.value),
+    featured:$("#e_featured").checked,spotlight:$("#e_spotlight").checked,paid:$("#e_paid").checked,lights_out:$("#e_lights").checked};
+  if(v("#e_lat")&&v("#e_lon")){ f.lat=+v("#e_lat"); f.lon=+v("#e_lon"); }
+  return f;
+}
+function renderForm(){
+  $("#view").innerHTML=`<form class="card" id="addf">${formHtml(null)}<div class="note">Leave latitude and longitude empty to look up the address automatically. Displays you add here go on the map right away.</div><div class="actions"><button class="btn primary" type="submit">Add to the map</button></div><div id="addMsg"></div></form>`;
+  $("#addf").onsubmit=async e=>{ e.preventDefault(); try{ await api("/api/admin",{method:"POST",body:{action:"create",fields:readForm()}}); toast("Added to the map"); renderForm(); }catch(err){ $("#addMsg").innerHTML=`<div class="err">${esc(err.message)}</div>`; } };
+}
+function openEdit(d){
+  const bd=document.createElement("div"); bd.className="backdrop";
+  bd.innerHTML=`<form class="modal" id="editf"><div class="meta" style="justify-content:space-between"><b style="font-size:18px">Edit ${esc(d.name)}</b><button type="button" class="btn" id="eclose">Close</button></div>${formHtml(d)}
+    <label class="checks"><span><input type="checkbox" id="e_regeo"> Look up the map location again from the address</span></label>
+    <div class="actions"><button class="btn primary" type="submit">Save</button>${d.status!=="approved"?`<button type="button" class="btn" id="esaveapprove">Save and approve</button>`:""}<button type="button" class="btn danger" id="edelete">Delete</button></div><div id="editMsg"></div></form>`;
+  document.body.appendChild(bd);
+  const close=()=>bd.remove();
+  $("#eclose").onclick=close; bd.onclick=e=>{ if(e.target===bd) close(); };
+  const save=async(approve)=>{ try{ const f=readForm(); if($("#e_regeo").checked){ f.regeocode=true; delete f.lat; delete f.lon; } await api("/api/admin",{method:"POST",body:{action:"update",id:d.id,fields:f}}); if(approve) await api("/api/admin",{method:"POST",body:{action:"approve",id:d.id}}); close(); toast(approve?"Saved and approved":"Saved"); load(); }catch(err){ $("#editMsg").innerHTML=`<div class="err">${esc(err.message)}</div>`; } };
+  $("#editf").onsubmit=e=>{ e.preventDefault(); save(false); };
+  const sa=$("#esaveapprove"); if(sa) sa.onclick=()=>save(true);
+  $("#edelete").onclick=e=>{ const b=e.currentTarget; if(!b.dataset.sure){ b.dataset.sure=1; b.textContent="Tap again to delete for good"; return; } close(); act({action:"delete",id:d.id},"Deleted"); };
+}
+function renderTeams(teams){
+  $("#view").innerHTML=`<div class="meta"><span>${teams.filter(t=>t.paid).length} paid teams · ${teams.length} total</span></div><div class="tablebox" style="margin-top:12px"><table><thead><tr><th>#</th><th>Team</th><th>County</th><th>Points</th><th>Hunt Pass</th></tr></thead><tbody>
+  ${teams.map((t,i)=>`<tr><td>${i+1}</td><td>${esc(t.name)}</td><td>${esc(t.county)}</td><td>${t.points}</td><td>${t.paid?'<span class="badge b-paid">Paid</span>':'<span class="note">Not paid</span>'}</td></tr>`).join("")||`<tr><td colspan="5" class="note">No teams yet.</td></tr>`}</tbody></table></div>`;
+}
+if(KEY) api("/api/admin?view=pending").then(start).catch(()=>{ KEY=""; });
+</script>
+</body>
+</html>

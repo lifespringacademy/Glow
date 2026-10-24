@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Glow · Christmas lights across North Carolina</title>
+<meta name="description" content="Find the best Christmas light displays in North Carolina. Ratings, live wait times, a route planner and the Family Hunt.">
+<meta name="theme-color" content="#0B1220">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Glow">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta property="og:title" content="Glow · Christmas lights across North Carolina">
+<meta property="og:description" content="Find the best light displays near you, see live wait times, and plan a route.">
+<meta property="og:image" content="https://letsglowwww.com/icons/og-image.png">
+<meta property="og:url" content="https://letsglowwww.com">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Outfit:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --night:#0B1220; --panel:#111A2E; --panel2:#16213A; --line:#24304A; --snow:#F4F6FB; --frost:#B8C2D8; --dim:#8E9AB5;
+  --amber:#FFB347; --warm:#FFD08A; --red:#FF4D5E; --green:#2FD08A; --wreath:#1F8A4C; --blue:#6CC4FF; --plum:#C89BFF; --gold:#FFD24A; --copper:#FFB27A;
+  --display:"Fredoka","Arial Rounded MT Bold",system-ui,sans-serif;
+  --body:"Outfit",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--night);color:var(--snow);font-family:var(--body);font-size:15px;line-height:1.45;
+  padding:env(safe-area-inset-top,0px) max(16px,env(safe-area-inset-right,0px)) calc(40px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--amber)}
+:focus-visible{outline:2px solid var(--warm);outline-offset:2px}
+[hidden]{display:none!important}
+.wrap{max-width:1200px;margin:0 auto}
+
+header.top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding-block:16px 12px}
+.brand{display:flex;align-items:center;gap:14px;min-width:0}
+.logo{display:flex;align-items:flex-end;font-family:var(--display);font-weight:700;font-size:44px;line-height:.9;letter-spacing:-1px;color:var(--snow);text-decoration:none}
+.logo svg{width:34px;height:35px;margin:0 2px 2px;filter:drop-shadow(0 0 8px rgba(255,179,71,.45))}
+.tagline{color:var(--frost);font-size:14px;max-width:24ch;line-height:1.25}
+nav.tabs{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+nav.tabs a{padding:8px 14px;border-radius:999px;color:var(--frost);font-weight:600;font-size:14px;white-space:nowrap;text-decoration:none}
+nav.tabs a[aria-current="page"]{background:var(--snow);color:var(--night)}
+@media (max-width:480px){#map{height:42vh}nav.tabs{width:100%}nav.tabs a{flex:1;text-align:center;padding:8px 6px;font-size:14px}nav.tabs .lg{display:none}.logo{font-size:38px}.logo svg{width:29px;height:30px}.tagline{display:none}}
+.count{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;margin-left:4px;padding:0 5px}
+
+.install{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:#2A2410;border:1px solid #6E5A1C;border-radius:14px;padding:10px 14px;margin-bottom:12px;font-size:14px}
+.install b{color:var(--warm)}
+
+.layout{display:grid;grid-template-columns:1fr;gap:16px}
+@media (min-width:900px){.layout{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}.mapcol{position:sticky;top:12px;align-self:start}}
+.mapcol,.listcol{min-width:0}
+#map{height:min(58vh,520px);min-height:300px;border-radius:14px;border:1px solid var(--line);background:#0a1120}
+.leaflet-container{font-family:var(--body);background:#0a1120}
+.leaflet-tile-pane{filter:invert(1) hue-rotate(195deg) brightness(.82) contrast(.92) saturate(.55)}
+.leaflet-control-attribution{background:rgba(11,18,32,.75)!important;color:var(--dim)!important}
+.leaflet-control-attribution a{color:var(--frost)!important}
+.leaflet-bar a{background:var(--panel)!important;color:var(--snow)!important;border-color:var(--line)!important}
+.pin{position:relative;display:block;width:16px;height:16px;border-radius:50%;background:var(--c);border:2px solid var(--night);box-shadow:0 0 10px 3px var(--c)}
+.pin.feat{outline:3px solid var(--gold);outline-offset:3px}
+.pin.spot{outline:3px dashed var(--copper);outline-offset:3px}
+.pin.off{opacity:.45;box-shadow:none}
+.pin b{position:absolute;inset:-6px;display:grid;place-items:center;font-size:12px;color:var(--night);font-weight:800;background:var(--warm);border-radius:50%;box-shadow:0 0 12px var(--warm)}
+.me-dot{width:16px;height:16px;border-radius:50%;background:var(--blue);border:3px solid #fff;box-shadow:0 0 0 6px rgba(108,196,255,.25)}
+.maplegend{display:flex;flex-wrap:wrap;gap:10px;padding:8px 2px;font-size:12px;color:var(--frost)}
+.maplegend span{display:inline-flex;align-items:center;gap:5px}
+.maplegend i{width:8px;height:8px;border-radius:50%;display:inline-block}
+
+.filters{display:grid;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.field{display:grid;gap:4px;min-width:0}
+.label{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--dim);font-weight:700}
+input[type=search],input[type=text],input[type=email],input[type=date],select,textarea{background:var(--night);border:1px solid var(--line);border-radius:10px;padding:9px 11px;min-width:0;width:100%}
+textarea{min-height:70px;resize:vertical}
+.near{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:10px;align-items:end}
+input[type=range]{width:100%;accent-color:var(--amber)}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:6px 11px;font-size:13px;color:var(--frost);display:inline-flex;align-items:center;gap:6px}
+.chip[aria-pressed="true"]{background:var(--snow);color:var(--night);border-color:var(--snow)}
+.chip .dot{width:8px;height:8px;border-radius:50%}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{background:none;border:0;padding:7px 12px;font-size:13px;color:var(--frost)}
+.seg button[aria-pressed="true"]{background:var(--snow);color:var(--night);font-weight:600}
+details.more summary{cursor:pointer;color:var(--blue);font-size:13px;font-weight:600}
+details.more[open] summary{margin-bottom:8px}
+.linkbtn{background:none;border:0;color:var(--blue);font-size:13px;font-weight:600;padding:2px 0}
+
+.resultsbar{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 2px 6px}
+.resultsbar b{font-family:var(--display);font-weight:600;font-size:20px}
+.cards{display:grid;gap:10px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:8px;min-width:0}
+.card.featured{border-color:#6E5A1C;background:linear-gradient(180deg,#1C2236,var(--panel))}
+.card.spot{border-color:#6A3D22}
+.card h3{margin:0;font-size:17px;font-weight:700;line-height:1.25}
+.card h3 button{background:none;border:0;padding:0;text-align:left;font-weight:700}
+.card h3 button:hover{color:var(--warm)}
+.meta{display:flex;flex-wrap:wrap;gap:6px 12px;color:var(--frost);font-size:13px;align-items:center}
+.badge{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:6px;padding:3px 7px;display:inline-flex;align-items:center;gap:5px}
+.b-feat{background:#3A2F0C;color:var(--gold)}
+.b-spot{background:#3A2012;color:var(--copper)}
+.b-free{background:#0F3326;color:var(--green)}
+.b-paid{background:#2C2440;color:#DDD0FF}
+.b-off{background:#3B1520;color:#FF98A2}
+.b-type{background:transparent;border:1px solid var(--line);color:var(--snow);font-weight:600;text-transform:none;letter-spacing:0;font-size:12px}
+.b-type .dot{width:8px;height:8px;border-radius:50%}
+.stars{color:var(--amber);letter-spacing:1px;font-size:13px}
+.wait{font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px}
+.w0{background:#0F3326;color:var(--green)} .w1{background:#3A2F0C;color:var(--amber)} .w2{background:#3B1520;color:#FF98A2}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-size:12px;color:var(--frost);background:var(--night);border-radius:6px;padding:2px 7px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--night);border-radius:10px;padding:9px 13px;font-weight:600;font-size:14px;text-decoration:none;color:var(--snow);display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--frost)}
+.btn.primary{background:var(--amber);color:#2A1700;border-color:var(--amber)}
+.btn.primary:hover{background:var(--warm)}
+.btn.in{background:#0F3326;border-color:#1F6A4B;color:var(--green)}
+.btn[disabled]{opacity:.6;cursor:wait}
+.empty{padding:28px 14px;text-align:center;color:var(--frost);background:var(--panel);border:1px dashed var(--line);border-radius:14px}
+.note{font-size:12px;color:var(--dim)}
+.err{color:#FF98A2;font-size:13px}
+.ok{background:#0F3326;border:1px solid #1F6A4B;color:var(--green);border-radius:12px;padding:12px}
+h2.sec{font-family:var(--display);font-weight:600;font-size:26px;margin:8px 0 0;letter-spacing:-.3px}
+.box{background:var(--night);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:8px}
+.box h4{margin:0;font-size:14px}
+
+/* sheet */
+.backdrop{position:fixed;inset:0;background:#02060fcc;z-index:1000;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:18px 18px 0 0;width:100%;max-width:560px;max-height:90vh;overflow:auto;
+  padding:18px max(18px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(18px,env(safe-area-inset-left,0px));display:grid;gap:14px}
+@media (min-width:700px){.backdrop{align-items:center}.sheet{border-radius:18px}}
+.sheet h2{font-family:var(--display);font-weight:600;font-size:28px;line-height:1.1;margin:0}
+.sheethead{display:flex;justify-content:space-between;gap:10px;align-items:start}
+.x{background:var(--night);border:1px solid var(--line);border-radius:50%;width:36px;height:36px;flex:none;font-size:18px;line-height:1}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:14px;margin:0}
+.facts dt{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;padding-top:2px}
+.facts dd{margin:0}
+.rate button{background:none;border:0;font-size:30px;color:var(--line);padding:0 2px;line-height:1}
+.rate button.on{color:var(--amber);text-shadow:0 0 10px #ffb54766}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--snow);color:var(--night);font-weight:600;padding:10px 16px;border-radius:999px;z-index:2000;box-shadow:0 8px 30px #000a;max-width:calc(100vw - 32px);text-align:center}
+
+/* tour */
+.tourlist{display:grid;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.stop{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px 14px;border-top:1px solid var(--line)}
+.stop:first-child{border-top:0}
+.num{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;background:var(--amber);color:#2A1700}
+.num.start{background:var(--blue);color:#04233A}
+.leg{font-size:12px;color:var(--dim)}
+.totals{display:flex;flex-wrap:wrap;gap:18px;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.totals div{display:grid}
+.totals b{font-family:var(--display);font-weight:600;font-size:26px;font-variant-numeric:tabular-nums}
+.totals span{font-size:12px;color:var(--frost)}
+.small{background:none;border:0;color:var(--dim);font-size:13px;padding:4px}
+.small:hover{color:var(--red)}
+
+/* hunt */
+.huntgrid{display:grid;gap:16px;grid-template-columns:1fr}
+@media (min-width:900px){.huntgrid{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)}.huntside{position:sticky;top:12px;align-self:start}}
+.huntmain,.huntside{min-width:0;display:grid;gap:14px;align-content:start}
+.teamcard{background:linear-gradient(135deg,#1C2C4D,#111A2E);border:1px solid var(--line);border-radius:16px;padding:16px;display:grid;gap:12px}
+.score{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.score b{font-family:var(--display);font-weight:600;font-size:52px;line-height:1;color:var(--warm);font-variant-numeric:tabular-nums;text-shadow:0 0 18px #ffd08a44}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:18px;letter-spacing:.18em;background:var(--night);border:1px dashed var(--line);border-radius:8px;padding:4px 10px;user-select:all}
+.safety{background:#3A2F0C;color:var(--warm);border-radius:12px;padding:10px 12px;font-size:14px;font-weight:600}
+.progress{height:8px;border-radius:4px;background:var(--night);overflow:hidden}
+.progress i{display:block;height:100%;background:var(--amber)}
+.finds{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.find{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;display:grid;gap:8px;align-content:start;min-width:0}
+.find.ok{border-color:#1F6A4B}
+.find .top{display:flex;justify-content:space-between;gap:8px;align-items:start}
+.pts{font-weight:700;color:var(--amber);font-size:13px;white-space:nowrap}
+.thumb{width:100%;max-width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px;background:var(--night);display:block}
+.verdict{font-size:13px;line-height:1.4}
+.verdict.ok{color:var(--green)} .verdict.no{color:#FF98A2} .verdict.wait{color:var(--frost)}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid var(--frost);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:3s}}
+.board{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.boardhead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px}
+.boardhead h3{margin:0;font-family:var(--display);font-weight:600;font-size:22px}
+.brow{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.brow.me{background:#2A2410}
+.brow .rank{font-weight:700;color:var(--frost);text-align:center}
+.brow.top3 .rank{color:var(--gold)}
+.brow small{display:block;color:var(--dim);font-size:12px}
+.badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.bdg{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;font-size:13px;color:var(--frost);opacity:.5}
+.bdg b{display:block;color:var(--snow);font-size:14px}
+.bdg.on{opacity:1;border-color:#6E5A1C}
+.bdg.on b{color:var(--gold)}
+.clist{display:grid;background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.crow{display:flex;justify-content:space-between;gap:10px;padding:10px 14px;border-top:1px solid var(--line);font-size:14px}
+.crow:first-child{border-top:0}
+.joincard{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px;display:grid;gap:12px}
+
+/* add */
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.plan{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:6px;align-content:start}
+.plan.hl{border-color:#6E5A1C}
+.plan .price{font-family:var(--display);font-weight:600;font-size:30px;line-height:1}
+.plan .price small{font-family:var(--body);font-size:15px;color:var(--frost);font-weight:400}
+.plan ul{margin:4px 0 0;padding-left:18px;color:var(--frost);font-size:14px}
+form.add{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);color:var(--dim);font-size:13px;display:flex;flex-wrap:wrap;gap:8px 18px;justify-content:space-between}
+footer a{color:var(--frost)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <a class="logo" href="#find" aria-label="Glow home">Gl<svg viewBox="0 0 100 104" aria-hidden="true"><circle cx="50" cy="50" r="36" fill="none" stroke="#1F8A4C" stroke-width="18"></circle><circle cx="50" cy="50" r="41" fill="none" stroke="#2FB866" stroke-width="3" stroke-dasharray="5 7" stroke-linecap="round"></circle><circle cx="50" cy="14" r="6" fill="#FF4D5E"></circle><circle cx="80.9" cy="31" r="6" fill="#FFB347"></circle><circle cx="80.9" cy="69" r="6" fill="#6CC4FF"></circle><circle cx="19.1" cy="69" r="6" fill="#FFF4D2"></circle><circle cx="19.1" cy="31" r="6" fill="#FFB347"></circle><path d="M50 87 L35 77 L35 97 Z" fill="#E63946"></path><path d="M50 87 L65 77 L65 97 Z" fill="#E63946"></path><circle cx="50" cy="87" r="5" fill="#B8232F"></circle></svg>w</a>
+      <span class="tagline">Christmas lights across North Carolina</span>
+    </div>
+    <nav class="tabs" aria-label="Sections">
+      <a href="#find" id="tab-find">Find<span class="lg"> lights</span></a>
+      <a href="#tour" id="tab-tour">My tour<span class="count" id="tourCount" hidden>0</span></a>
+      <a href="#hunt" id="tab-hunt"><span class="lg">Family </span>Hunt</a>
+      <a href="#add" id="tab-add">Add<span class="lg"> a display</span></a>
+    </nav>
+  </header>
+
+  <div class="install" id="installBar" hidden>
+    <span id="installText"></span>
+    <span class="row"><button class="btn primary" id="installBtn" hidden>Install Glow</button><button class="small" id="installDismiss">Not now</button></span>
+  </div>
+
+  <section id="view-map" class="layout">
+    <div class="mapcol">
+      <div id="map" role="region" aria-label="Map of light displays"></div>
+      <div class="maplegend" id="legend"></div>
+    </div>
+
+    <div class="listcol" id="panel-find">
+      <div class="filters">
+        <div class="field"><label class="label" for="q">Search</label>
+          <input type="search" id="q" placeholder="Display name, town, or 'Santa'"></div>
+        <div class="near">
+          <div class="field"><label class="label" for="town">Near</label><select id="town"></select></div>
+          <div class="field"><label class="label" for="radius">Within <span id="radiusVal">25</span> miles</label>
+            <input type="range" id="radius" min="5" max="100" step="5" value="25"></div>
+        </div>
+        <div><button class="linkbtn" id="useLoc" type="button">📍 Use my location</button> <span class="note" id="locNote"></span></div>
+        <div class="field"><span class="label">Type</span><div class="row" id="typeChips"></div></div>
+        <div class="row" style="justify-content:space-between">
+          <div class="field"><span class="label">Cost</span>
+            <div class="seg" id="costSeg"><button type="button" data-v="all" aria-pressed="true">All</button><button type="button" data-v="free" aria-pressed="false">Free</button><button type="button" data-v="paid" aria-pressed="false">Paid</button></div></div>
+          <div class="field"><label class="label" for="sort">Sort</label>
+            <select id="sort"><option value="featured">Featured first</option><option value="rating">Top rated</option><option value="distance">Closest</option><option value="wait">Shortest wait</option><option value="name">A to Z</option></select></div>
+        </div>
+        <details class="more">
+          <summary>More filters</summary>
+          <div style="display:grid;gap:10px">
+            <div class="field"><label class="label" for="date">Open on</label>
+              <div class="row"><input type="date" id="date" style="width:auto"><button class="small" id="clearDate" type="button">Any date</button></div></div>
+            <div class="field"><span class="label">Must have</span><div class="row" id="amenChips"></div></div>
+          </div>
+        </details>
+      </div>
+      <div class="resultsbar"><b id="resultCount">Loading displays…</b><span class="note" id="resultNote"></span></div>
+      <div class="cards" id="cards"></div>
+    </div>
+
+    <div class="listcol" id="panel-tour" hidden>
+      <div style="display:grid;gap:12px">
+        <div class="filters">
+          <div class="near">
+            <div class="field"><label class="label" for="tourStart">Start from</label><select id="tourStart"></select></div>
+            <div class="field"><span class="label">Order</span>
+              <div class="seg" id="orderSeg"><button type="button" data-v="best" aria-pressed="true">Shortest route</button><button type="button" data-v="added" aria-pressed="false">As added</button></div></div>
+          </div>
+        </div>
+        <div id="tourBody"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-hunt" hidden>
+    <div id="huntBody"></div>
+    <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
+  </section>
+
+  <section id="view-add" hidden style="display:grid;gap:16px">
+    <div>
+      <h2 class="sec">List your display</h2>
+      <p style="color:var(--frost);margin:4px 0 0;max-width:62ch">Homes and neighborhoods are always free. Businesses can list for free or be Featured at the top of results. North Carolina only. Every listing is reviewed before it goes on the map.</p>
+    </div>
+    <div class="plans">
+      <div class="plan"><span class="label">Homes &amp; neighborhoods</span><span class="price">Free</span><ul><li>Pin on the map</li><li>Ratings and wait times</li><li>Hours and FM station</li></ul></div>
+      <div class="plan"><span class="label" style="color:var(--copper)">Spotlight boost</span><span class="price" id="priceSpot">$5<small> / season</small></span><ul><li>For homes and neighborhoods</li><li>Homeowner Pick badge and copper pin</li><li>Listed above regular displays</li><li>Family Hunt bonus stop: families earn 20 points for visiting</li></ul></div>
+      <div class="plan"><span class="label">Business basic</span><span class="price">Free</span><ul><li>Everything in Free</li><li>Ticket price and website link</li></ul></div>
+      <div class="plan hl"><span class="label" style="color:var(--gold)">Featured business</span><span class="price" id="priceFeat">$49<small> / season</small></span><ul><li>Top of results in your area</li><li>Gold pin and Featured badge</li><li>Ticket button on your listing</li><li>Family Hunt bonus: +5 points per check-in</li></ul></div>
+    </div>
+    <div id="paidMsg"></div>
+    <form class="add" id="addForm" novalidate>
+      <div class="grid2">
+        <div class="field"><label class="label" for="fName">Display name</label><input type="text" id="fName" maxlength="80" placeholder="Peppermint Lane Lights"></div>
+        <div class="field"><label class="label" for="fType">Type</label><select id="fType"></select></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label class="label" for="fStreet">Street address</label><input type="text" id="fStreet" maxlength="120" autocomplete="street-address" placeholder="123 Holly Ridge Ln"></div>
+        <div class="field"><label class="label" for="fCity">City</label><input type="text" id="fCity" maxlength="60" placeholder="Clayton"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label class="label" for="fState">State</label><input type="text" id="fState" value="NC" readonly><span class="note">North Carolina only</span></div>
+        <div class="field"><label class="label" for="fZip">ZIP</label><input type="text" id="fZip" inputmode="numeric" maxlength="5" placeholder="27520"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label class="label" for="fCost">Cost to visit</label><select id="fCost"><option value="free">Free</option><option value="paid">Paid</option></select></div>
+        <div class="field"><label class="label" for="fPrice">Price (if paid)</label><input type="text" id="fPrice" maxlength="80" placeholder="$20 per car"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label class="label" for="fHours">Hours</label><input type="text" id="fHours" maxlength="80" placeholder="5:30–10 pm nightly"></div>
+        <div class="field"><label class="label" for="fFm">FM station (if synced to music)</label><input type="text" id="fFm" maxlength="10" placeholder="88.3"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label class="label" for="fStart">First night</label><input type="date" id="fStart"></div>
+        <div class="field"><label class="label" for="fEnd">Last night</label><input type="date" id="fEnd"></div>
+      </div>
+      <div class="field"><label class="label" for="fDesc">Short description</label><textarea id="fDesc" maxlength="400" placeholder="What makes it special? Where should people park?"></textarea></div>
+      <div class="field"><span class="label">Extras</span><div class="row" id="fTags"></div></div>
+      <div class="field"><label class="label" for="fUrl">Website or tickets link (optional)</label><input type="text" id="fUrl" maxlength="300" placeholder="https://"></div>
+      <div class="field"><label class="label" for="fPlan">Listing</label><select id="fPlan"><option value="home">Home or neighborhood (free)</option><option value="spot">Home or neighborhood + Spotlight boost</option><option value="basic">Business basic (free)</option><option value="featured">Featured business</option></select></div>
+      <div class="field"><label class="label" for="fEmail">Your email (for the approval notice, never shown)</label><input type="email" id="fEmail" maxlength="120" autocomplete="email" placeholder="you@example.com"></div>
+      <div id="formMsg"></div>
+      <div class="actions"><button class="btn primary" type="submit" id="addSubmit">Submit for review</button></div>
+    </form>
+  </section>
+
+  <footer>
+    <span>© <span id="yr"></span> Glow · letsglowwww.com · North Carolina</span>
+    <span><a href="/privacy">Privacy &amp; terms</a> · <a id="contactLink" href="#">Contact</a></span>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ===== Settings you may want to change =====
+const CONTACT_EMAIL = "hello@letsglowwww.com";   // shown in the footer
+const PRIZE_TEXT = "Top family in each county wins 4 tickets to a Featured display near them. The statewide champion, announced Dec 26, wins a holiday basket from Glow sponsors.";
+// Map tiles: OpenStreetMap (free for light use). If traffic grows, switch to a paid tile plan here.
+const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+// ===========================================
+
+const TYPES = {
+  home:{label:"Home display", color:"#FFE08A"}, hood:{label:"Neighborhood", color:"#FFB347"},
+  drive:{label:"Drive-thru", color:"#FF4D5E"}, walk:{label:"Walk-through", color:"#2FD08A"},
+  music:{label:"Music light show", color:"#6CC4FF"}, town:{label:"Town event", color:"#C89BFF"}
+};
+const AMEN = ["Santa visits","Hot cocoa","Wheelchair friendly","Stroller friendly","Pets welcome","Restrooms","Synced to FM"];
+const TOWNS = {"Apex":[35.732,-78.850],"Asheboro":[35.708,-79.814],"Asheville":[35.595,-82.551],"Boone":[36.216,-81.675],"Burlington":[36.096,-79.437],"Cary":[35.791,-78.781],"Chapel Hill":[35.913,-79.056],"Charlotte":[35.227,-80.843],"Clayton":[35.651,-78.456],"Concord":[35.409,-80.579],"Durham":[35.994,-78.899],"Elizabeth City":[36.295,-76.251],"Fayetteville":[35.053,-78.878],"Fuquay-Varina":[35.584,-78.800],"Garner":[35.711,-78.614],"Gastonia":[35.262,-81.187],"Goldsboro":[35.385,-77.993],"Greensboro":[36.073,-79.792],"Greenville":[35.613,-77.366],"Hendersonville":[35.319,-82.461],"Hickory":[35.733,-81.341],"High Point":[35.956,-80.005],"Holly Springs":[35.651,-78.834],"Huntersville":[35.411,-80.843],"Jacksonville":[34.754,-77.430],"Kannapolis":[35.487,-80.622],"Kill Devil Hills":[36.031,-75.676],"Knightdale":[35.788,-78.481],"Lumberton":[34.618,-79.011],"Matthews":[35.117,-80.723],"McAdenville":[35.262,-81.078],"Mooresville":[35.585,-80.811],"Morehead City":[34.723,-76.726],"Morganton":[35.745,-81.685],"New Bern":[35.109,-77.044],"Raleigh":[35.780,-78.639],"Rocky Mount":[35.938,-77.791],"Salisbury":[35.671,-80.474],"Sanford":[35.480,-79.180],"Smithfield":[35.508,-78.339],"Southern Pines":[35.174,-79.392],"Statesville":[35.783,-80.887],"Wake Forest":[35.980,-78.510],"Wilmington":[34.226,-77.945],"Wilson":[35.722,-77.916],"Winston-Salem":[36.100,-80.244]};
+const M = 60000, ROAD = 1.25, NC_BOUNDS = [[33.85,-84.32],[36.59,-75.46]];
+
+const $ = s=>document.querySelector(s);
+const esc = s=>String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const store = { get(k,d){ try{ const v=localStorage.getItem(k); return v==null?d:JSON.parse(v); }catch(e){ return d; } }, set(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} } };
+function uuid(){ return (crypto.randomUUID ? crypto.randomUUID() : 'd-'+Math.random().toString(36).slice(2)+Date.now().toString(36)); }
+const DEVICE = store.get("glow-device", null) || (()=>{ const d=uuid(); store.set("glow-device", d); return d; })();
+
+async function api(path, opts={}){
+  const r = await fetch(path, { method: opts.method || "GET", headers: { "Content-Type":"application/json", "x-device": DEVICE }, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  let data = {}; try{ data = await r.json(); }catch(e){}
+  if(!r.ok) throw Object.assign(new Error(data.error || "Something went wrong. Please try again."), {status:r.status});
+  return data;
+}
+
+// ---------- state ----------
+let D = [];
+let S = {q:"", town:"all", radius:25, types:new Set(Object.keys(TYPES)), cost:"all", sort:"featured", date:"", amen:new Set(), tab:"find",
+  tour: store.get("glow-tour", []), order:"best", tourStart:"first"};
+let myLoc = null;
+let myRatings = store.get("glow-ratings", {});
+const saveTour = ()=>store.set("glow-tour", S.tour);
+
+function miles(a,b){const R=3958.8,r=x=>x*Math.PI/180;const dLat=r(b[0]-a[0]),dLon=r(b[1]-a[1]);const h=Math.sin(dLat/2)**2+Math.cos(r(a[0]))*Math.cos(r(b[0]))*Math.sin(dLon/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+function stars(v){ const f=Math.round(v); return "★".repeat(f)+"☆".repeat(5-f); }
+function waitOf(d){ if(d.wait_minutes==null||!d.wait_at) return null; const t=new Date(d.wait_at).getTime(); if(Date.now()-t>3*60*M) return null; return {m:d.wait_minutes,t}; }
+function waitChip(w){ if(!w) return ""; const cls=w.m===0?"w0":w.m<=15?"w1":"w2"; const lbl=w.m===0?"No wait":w.m>=60?"60+ min wait":`~${w.m} min wait`; const ago=Math.max(1,Math.round((Date.now()-w.t)/M)); return `<span class="wait ${cls}" title="Reported by a visitor">${lbl} · ${ago} min ago</span>`; }
+function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function openOn(d,s){ if(!s) return true; if(d.start_date && s<d.start_date) return false; if(d.end_date && s>d.end_date) return false; if(!d.days||!d.days.length) return true; return d.days.includes(new Date(s+"T12:00:00").getDay()); }
+function fmtDate(s){ return s ? new Date(s+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}) : ""; }
+function season(d){ return d.start_date||d.end_date ? `${fmtDate(d.start_date)||"Now"} – ${fmtDate(d.end_date)||"?"}` : ""; }
+function center(){ if(S.town==="me" && myLoc) return myLoc; return TOWNS[S.town] || null; }
+function centerName(){ return S.town==="me" ? "you" : S.town; }
+function typeOf(d){ return TYPES[d.type] || TYPES.home; }
+
+function filtered(){
+  const c=center(), q=S.q.trim().toLowerCase();
+  let list = D.map(d=>({...d, dist: c ? miles(c,[d.lat,d.lon])*ROAD : null}));
+  list = list.filter(d=>S.types.has(d.type) && (S.cost==="all"||d.cost===S.cost) && openOn(d,S.date)
+    && (!c || d.dist<=S.radius) && [...S.amen].every(a=>(d.tags||[]).includes(a))
+    && (!q || [d.name,d.city,(d.tags||[]).join(" "),d.description,typeOf(d).label].join(" ").toLowerCase().includes(q)));
+  const rank = d=>d.featured?2:d.spotlight?1:0;
+  const by = {
+    featured:(a,b)=>rank(b)-rank(a) || (c? a.dist-b.dist : b.rating-a.rating),
+    rating:(a,b)=>b.rating-a.rating || b.n_ratings-a.n_ratings,
+    distance:(a,b)=>c? a.dist-b.dist : a.name.localeCompare(b.name),
+    wait:(a,b)=>{const wa=waitOf(a),wb=waitOf(b);return (wa?wa.m:30.5)-(wb?wb.m:30.5);},
+    name:(a,b)=>a.name.localeCompare(b.name)
+  };
+  return list.sort(by[S.sort]);
+}
+
+// ---------- map ----------
+let map, layer;
+function initMap(){
+  if(!window.L){ $("#map").innerHTML='<div class="empty" style="height:100%;display:grid;place-items:center">The map couldn\'t load. The list still works.</div>'; return; }
+  map = L.map("map", {zoomControl:true, attributionControl:true}).fitBounds(NC_BOUNDS);
+  L.tileLayer(TILE_URL, {maxZoom:18, attribution:TILE_ATTR}).addTo(map);
+  layer = L.layerGroup().addTo(map);
+  map.setMaxBounds([[33.2,-85.5],[37.2,-74.8]]);
+}
+function pinIcon(d, num){
+  const cls = ["pin", d.featured?"feat":d.spotlight?"spot":"", d.lights_out?"off":""].join(" ");
+  return L.divIcon({className:"", html:`<span class="${cls}" style="--c:${typeOf(d).color}">${num?`<b>${num}</b>`:""}</span>`, iconSize:[16,16], iconAnchor:[8,8]});
+}
+let lastFitKey = "";
+function renderMap(list){
+  if(!map) return;
+  layer.clearLayers();
+  const onTour = S.tab==="tour";
+  const o = orderedTour(); const idx = {}; o.stops.forEach((p,i)=>idx[p.id]=i+1);
+  const show = onTour ? o.stops : list;
+  const pts = [];
+  show.forEach(d=>{
+    const m = L.marker([d.lat,d.lon], {icon: pinIcon(d, idx[d.id]), title: d.name, keyboard:true, riseOnHover:true}).addTo(layer);
+    m.on("click", ()=>openSheet(d.id));
+    pts.push([d.lat,d.lon]);
+  });
+  if(myLoc) L.marker(myLoc, {icon:L.divIcon({className:"",html:'<span class="me-dot"></span>',iconSize:[16,16],iconAnchor:[8,8]}), interactive:false}).addTo(layer);
+  const seq = (o.st?[[o.st.lat,o.st.lon]]:[]).concat(o.stops.map(p=>[p.lat,p.lon]));
+  if(seq.length>1) L.polyline(seq, {color:"#FFD08A", weight:3, opacity:onTour?.9:.35, dashArray:"6 8"}).addTo(layer);
+  const c = center();
+  if(!onTour && c){ L.circle(c, {radius:S.radius/ROAD*1609.34, color:"#6CC4FF", weight:1.5, opacity:.6, fillOpacity:.04, dashArray:"5 6", interactive:false}).addTo(layer); }
+  // Fit the view when the question changes (not on every refresh)
+  const key = [S.tab, S.town, S.radius, onTour?S.tour.join(","):"", myLoc&&S.town==="me"?"me":""].join("|");
+  if(key!==lastFitKey){
+    lastFitKey = key;
+    if(onTour && seq.length) map.fitBounds(L.latLngBounds(seq).pad(.25), {maxZoom:13});
+    else if(c) map.fitBounds(L.latLng(c).toBounds(S.radius/ROAD*1609.34*2.1), {maxZoom:13});
+    else map.fitBounds(NC_BOUNDS);
+  }
+}
+
+// ---------- list ----------
+function card(d){
+  const inT=S.tour.includes(d.id), w=waitOf(d), t=typeOf(d);
+  return `<article class="card ${d.featured?"featured":d.spotlight?"spot":""}">
+    <div class="meta">${d.featured?`<span class="badge b-feat">★ Featured</span>`:""}${d.spotlight?`<span class="badge b-spot">✦ Homeowner Pick</span>`:""}${d.lights_out?`<span class="badge b-off">Lights off for now</span>`:""}
+      <span class="badge b-type"><span class="dot" style="background:${t.color};box-shadow:0 0 6px ${t.color}"></span>${t.label}</span>
+      <span class="badge ${d.cost==="free"?"b-free":"b-paid"}">${d.cost==="free"?"Free":esc(d.price||"Paid")}</span></div>
+    <h3><button type="button" data-open="${d.id}">${esc(d.name)}</button></h3>
+    <div class="meta"><span>${esc(d.city)}, NC${d.dist!=null?` · ${d.dist.toFixed(0)} mi`:""}</span>${d.n_ratings?`<span><span class="stars" aria-hidden="true">${stars(d.rating)}</span> ${d.rating.toFixed(1)} <span style="color:var(--dim)">(${d.n_ratings})</span></span>`:`<span class="note">No ratings yet</span>`}${waitChip(w)}</div>
+    <div class="meta">${d.hours?`<span>${esc(d.hours)}</span>`:""}${season(d)?`<span>${season(d)}</span>`:""}${d.fm?`<span>Tune to FM ${esc(d.fm)}</span>`:""}</div>
+    <div class="actions"><button type="button" class="btn ${inT?"in":"primary"}" data-tour="${d.id}">${inT?"✓ In your tour":"+ Add to tour"}</button><button type="button" class="btn" data-open="${d.id}">Details, rate, wait time</button></div>
+  </article>`;
+}
+let loaded = false, loadError = "";
+function renderList(list){
+  if(!loaded){ $("#resultCount").textContent = loadError ? "Couldn't load displays" : "Loading displays…"; $("#cards").innerHTML = loadError?`<div class="empty">${esc(loadError)} <button class="linkbtn" onclick="loadDisplays()">Try again</button></div>`:""; return; }
+  $("#resultCount").textContent = `${list.length} display${list.length===1?"":"s"}`;
+  $("#resultNote").textContent = center() ? `within ${S.radius} mi of ${centerName()}` : "across North Carolina";
+  $("#cards").innerHTML = list.length ? list.map(card).join("") :
+    D.length ? `<div class="empty">No displays match these filters. Try a wider radius or clear a filter.</div>`
+             : `<div class="empty">Displays are being added for the season. Know a great one? <a href="#add">Add it to the map</a>.</div>`;
+}
+
+// ---------- tour ----------
+function tourStops(){ return S.tour.map(id=>D.find(d=>d.id===id)).filter(Boolean); }
+function startPoint(){ if(S.tourStart==="me" && myLoc) return {name:"your location", lat:myLoc[0], lon:myLoc[1]}; if(TOWNS[S.tourStart]) return {name:S.tourStart, lat:TOWNS[S.tourStart][0], lon:TOWNS[S.tourStart][1]}; return null; }
+function orderedTour(){
+  const stops=tourStops(), st=startPoint();
+  if(S.order==="added" || (stops.length<3 && !st)) return {st, stops};
+  const pts=stops.slice(); const route=[]; let cur = st? [st.lat,st.lon] : null;
+  if(!cur){ route.push(pts.shift()); cur=[route[0].lat,route[0].lon]; }
+  while(pts.length){ let bi=0,bd=Infinity; pts.forEach((p,i)=>{const m=miles(cur,[p.lat,p.lon]); if(m<bd){bd=m;bi=i;}}); const p=pts.splice(bi,1)[0]; route.push(p); cur=[p.lat,p.lon]; }
+  const all = st? [st,...route] : route;
+  const len = arr=>arr.slice(1).reduce((s,p,i)=>s+miles([arr[i].lat,arr[i].lon],[p.lat,p.lon]),0);
+  let best=all.slice(), improved=true;
+  while(improved){ improved=false;
+    for(let i=1;i<best.length-1;i++) for(let k=i+1;k<best.length;k++){
+      const cand=best.slice(0,i).concat(best.slice(i,k+1).reverse(), best.slice(k+1));
+      if(len(cand)+1e-9<len(best)){best=cand;improved=true;}
+    } }
+  return {st, stops: st? best.slice(1) : best};
+}
+function tourMath(o){
+  const seq=(o.st?[o.st]:[]).concat(o.stops), legs=[];
+  for(let i=1;i<seq.length;i++) legs.push(miles([seq[i-1].lat,seq[i-1].lon],[seq[i].lat,seq[i].lon])*ROAD);
+  const mi=legs.reduce((a,b)=>a+b,0);
+  const driveMin=legs.reduce((s,l)=>s+l/(l<15?25:45)*60,0);
+  const waitMin=o.stops.reduce((s,d)=>{const w=waitOf(d);return s+(w?w.m:0);},0);
+  return {legs, mi, totalMin: driveMin+o.stops.length*15+waitMin, waitMin};
+}
+function gmapsUrl(o){
+  const fromMe = S.tourStart==="me";   // leave origin off so Google starts from the phone's location
+  const seq=(o.st && !fromMe?[o.st]:[]).concat(o.stops); if(!seq.length) return "#";
+  const ll=p=>`${p.lat},${p.lon}`;
+  const dest=ll(seq[seq.length-1]); const origin = !fromMe && seq.length>1 ? ll(seq[0]) : null;
+  const way=seq.slice(origin?1:0,-1).map(ll).join("|");
+  return `https://www.google.com/maps/dir/?api=1${origin?`&origin=${origin}`:""}&destination=${dest}${way?`&waypoints=${encodeURIComponent(way)}`:""}&travelmode=driving`;
+}
+function hm(min){ min=Math.round(min); const h=Math.floor(min/60), m=min%60; return h? `${h} hr ${m} min` : `${m} min`; }
+function toggleTour(id){
+  const i=S.tour.indexOf(id);
+  if(i>=0){ S.tour.splice(i,1); toast("Removed from your tour"); }
+  else { if(S.tour.length>=10){ toast("A tour can hold 10 stops"); return; } S.tour.push(id); toast("Added to your tour"); }
+  saveTour(); renderAll();
+}
+function renderTour(){
+  S.tour = S.tour.filter(id=>!loaded || D.some(d=>d.id===id));
+  const body=$("#tourBody"), n=S.tour.length, cnt=$("#tourCount"); cnt.hidden=!n; cnt.textContent=n;
+  if(!n){ body.innerHTML=`<div class="empty">Your tour is empty. Tap <b>+ Add to tour</b> on any display and Glow maps the shortest route between them.</div>`; return; }
+  const o=orderedTour(), t=tourMath(o);
+  let h=`<div class="totals"><div><b>${o.stops.length}</b><span>stops</span></div><div><b>${t.mi.toFixed(0)} mi</b><span>driving, estimated</span></div><div><b>${hm(t.totalMin)}</b><span>with 15 min per stop${t.waitMin?` + ${t.waitMin} min reported waits`:""}</span></div></div><div class="tourlist" style="margin-top:12px">`;
+  if(o.st) h+=`<div class="stop"><span class="num start">S</span><div><b>Start from ${esc(o.st.name)}</b></div><span></span></div>`;
+  o.stops.forEach((d,i)=>{ const leg=t.legs[o.st?i:i-1], w=waitOf(d);
+    h+=`<div class="stop"><span class="num">${i+1}</span><div style="min-width:0"><b>${esc(d.name)}</b><div class="leg">${esc(d.city)} · ${d.cost==="free"?"Free":esc(d.price||"Paid")}${leg!=null?` · ${leg.toFixed(0)} mi from previous`:""}</div>${w?`<div style="margin-top:4px">${waitChip(w)}</div>`:""}</div><button type="button" class="small" data-rm="${d.id}" aria-label="Remove ${esc(d.name)}">Remove</button></div>`; });
+  h+=`</div><div class="actions" style="margin-top:12px"><a class="btn primary" href="${gmapsUrl(o)}" target="_blank" rel="noopener">Open route in Google Maps</a><button type="button" class="btn" id="shareTour">Share tour</button><button type="button" class="btn" id="clearTour">Clear tour</button></div>
+  <p class="note">Miles are estimated. Google Maps gives exact directions.</p>`;
+  body.innerHTML=h;
+  body.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>toggleTour(+b.dataset.rm));
+  $("#clearTour").onclick=()=>{S.tour=[];saveTour();renderAll();};
+  $("#shareTour").onclick=()=>share("My Glow lights tour", `My Christmas lights tour on Glow:\n`+o.stops.map((d,i)=>`${i+1}. ${d.name}, ${d.city} NC${d.hours?` (${d.hours})`:""}`).join("\n")+`\nRoute: ${gmapsUrl(o)}`);
+}
+
+// ---------- sharing / toasts ----------
+async function share(title, text){
+  if(navigator.share){ try{ await navigator.share({title, text}); return; }catch(e){ if(e.name==="AbortError") return; } }
+  try{ await navigator.clipboard.writeText(text); toast("Copied. Paste it in a text or post."); }
+  catch(e){ const ta=document.createElement("textarea"); ta.value=text; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy"); toast("Copied. Paste it in a text or post.");}catch(_){toast("Couldn't copy. Select the text and copy it.");} ta.remove(); }
+}
+let toastT; function toast(m){ document.querySelectorAll(".toast").forEach(t=>t.remove()); const t=document.createElement("div"); t.className="toast"; t.textContent=m; t.setAttribute("role","status"); document.body.appendChild(t); clearTimeout(toastT); toastT=setTimeout(()=>t.remove(),2600); }
+
+// ---------- location ----------
+function getLocation(){
+  return new Promise((resolve,reject)=>{
+    if(!navigator.geolocation) return reject(new Error("Your browser can't share location."));
+    navigator.geolocation.getCurrentPosition(p=>resolve(p), e=>reject(new Error(e.code===1?"Location is blocked. Allow location for letsglowwww.com in your browser settings.":"Couldn't get your location. Try again outside or with better signal.")), {enableHighAccuracy:true, timeout:15000, maximumAge:30000});
+  });
+}
+
+// ---------- detail sheet ----------
+function openSheet(id){
+  const d=D.find(x=>x.id===id); if(!d) return;
+  const w=waitOf(d), mine=myRatings[id]||0, inT=S.tour.includes(id), c=center(), t=typeOf(d);
+  const dist = c? miles(c,[d.lat,d.lon])*ROAD : null;
+  const pts = d.spotlight?20:10+(d.featured?5:0);
+  const bd=document.createElement("div"); bd.className="backdrop";
+  bd.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t">
+    <div class="sheethead"><div style="display:grid;gap:8px"><div class="meta">${d.featured?`<span class="badge b-feat">★ Featured</span>`:""}${d.spotlight?`<span class="badge b-spot">✦ Homeowner Pick · bonus stop</span>`:""}<span class="badge b-type">${t.label}</span><span class="badge ${d.cost==="free"?"b-free":"b-paid"}">${d.cost==="free"?"Free":"Paid"}</span></div><h2 id="sh-t">${esc(d.name)}</h2></div><button type="button" class="x" aria-label="Close">×</button></div>
+    ${d.lights_out?`<div class="safety" style="background:#3B1520;color:#FF98A2">The lights are off here for now. Check back later.</div>`:""}
+    ${d.description?`<p style="margin:0;color:var(--frost)">${esc(d.description)}</p>`:""}
+    <dl class="facts"><dt>Where</dt><dd>${esc(d.street?d.street+", ":"")}${esc(d.city)}, NC${dist!=null?` · about ${dist.toFixed(0)} mi from ${esc(centerName())}`:""}</dd>
+      <dt>Cost</dt><dd>${esc(d.price||(d.cost==="free"?"Free":"Paid"))}</dd>${d.hours?`<dt>Hours</dt><dd>${esc(d.hours)}</dd>`:""}${season(d)?`<dt>Season</dt><dd>${season(d)}</dd>`:""}
+      ${d.fm?`<dt>Radio</dt><dd>Tune to FM ${esc(d.fm)} for the music</dd>`:""}<dt>Rating</dt><dd>${d.n_ratings?`<span class="stars">${stars(d.rating)}</span> ${d.rating.toFixed(1)} from ${d.n_ratings} visitor${d.n_ratings===1?"":"s"}`:"No ratings yet"}</dd></dl>
+    ${(d.tags||[]).length?`<div class="tags">${d.tags.map(x=>`<span class="tag">${esc(x)}</span>`).join("")}</div>`:""}
+    <div class="box"><h4>Wait time right now</h4>${w?`<div>${waitChip(w)}</div>`:`<div class="note">No reports in the last 3 hours.</div>`}
+      <div class="note">There now? Tell others how long the line is:</div>
+      <div class="row">${[0,15,30,45,60].map(m=>`<button type="button" class="chip" data-wait="${m}">${m===0?"No wait":m===60?"60+ min":m+" min"}</button>`).join("")}</div></div>
+    <div class="box"><h4>${mine?"Your rating":"Rate this display"}</h4><div class="rate" role="group" aria-label="Your rating">${[1,2,3,4,5].map(i=>`<button type="button" data-star="${i}" class="${i<=mine?"on":""}" aria-label="${i} star${i>1?"s":""}">★</button>`).join("")}</div></div>
+    <div class="box"><h4>Family Hunt</h4><div class="note">Here with your family? Check in for ${pts} points. Passengers only, once you're parked.</div>
+      <div><button type="button" class="btn primary" id="shCheck">Check in here</button></div></div>
+    <div class="actions"><button type="button" class="btn ${inT?"in":"primary"}" id="shTour">${inT?"✓ In your tour":"+ Add to tour"}</button>
+      <a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}&travelmode=driving" target="_blank" rel="noopener">Directions</a>
+      <button type="button" class="btn" id="shShare">Share</button>${d.url?`<a class="btn" href="${esc(d.url)}" target="_blank" rel="noopener">${d.cost==="paid"?"Buy tickets":"Website"}</a>`:""}</div>
+  </div>`;
+  document.body.appendChild(bd);
+  const close=()=>{bd.remove(); document.removeEventListener("keydown",onKey);}; const onKey=e=>{if(e.key==="Escape")close();};
+  document.addEventListener("keydown",onKey);
+  bd.addEventListener("click",e=>{if(e.target===bd)close();}); bd.querySelector(".x").onclick=close; bd.querySelector(".x").focus();
+  bd.querySelectorAll("[data-wait]").forEach(b=>b.onclick=async()=>{
+    try{ await api("/api/activity",{method:"POST",body:{action:"wait",display_id:id,minutes:+b.dataset.wait}}); d.wait_minutes=+b.dataset.wait; d.wait_at=new Date().toISOString(); close(); renderAll(); openSheet(id); toast("Thanks! Your wait time is posted."); }
+    catch(e){ toast(e.message); } });
+  bd.querySelectorAll("[data-star]").forEach(b=>b.onclick=async()=>{
+    const s=+b.dataset.star;
+    try{ await api("/api/activity",{method:"POST",body:{action:"rate",display_id:id,stars:s}});
+      const prev=myRatings[id]; if(prev){ d.rating=(d.rating*d.n_ratings-prev+s)/d.n_ratings; } else { d.rating=(d.rating*d.n_ratings+s)/(d.n_ratings+1); d.n_ratings++; }
+      myRatings[id]=s; store.set("glow-ratings",myRatings); close(); renderAll(); openSheet(id); toast("Rating saved. Thank you!"); }
+    catch(e){ toast(e.message); } });
+  bd.querySelector("#shTour").onclick=()=>{ toggleTour(id); close(); openSheet(id); };
+  bd.querySelector("#shCheck").onclick=async(e)=>{
+    if(!H.teamId){ close(); location.hash="#hunt"; toast("Start or join a Family Hunt team first."); return; }
+    const btn=e.currentTarget; btn.disabled=true; btn.textContent="Checking your location…";
+    try{
+      const p=await getLocation();
+      if(p.coords.speed!=null && p.coords.speed>4) throw new Error("Looks like you're moving. Check in once you're parked.");
+      const r=await api("/api/hunt",{method:"POST",body:{action:"checkin",team_id:H.teamId,display_id:id,lat:p.coords.latitude,lon:p.coords.longitude}});
+      toast(`Checked in! +${r.points} points`); btn.textContent="✓ Checked in"; btn.classList.add("in"); loadHunt();
+    }catch(err){ toast(err.message); btn.disabled=false; btn.textContent="Check in here"; }
+  };
+  bd.querySelector("#shShare").onclick=()=>share(d.name, `${d.name} in ${d.city}, NC${d.hours?`: ${d.hours}`:""}. Found on Glow: https://letsglowwww.com\nDirections: https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}`);
+}
+
+// ---------- Family Hunt ----------
+const H = { teamId: store.get("glow-team", null), data:null, scope:"county", photos:{}, pending:{}, loading:false, error:"" };
+let currentFind = null;
+
+async function loadHunt(){
+  H.loading = true;
+  try{ H.data = await api("/api/hunt"+(H.teamId?`?team=${encodeURIComponent(H.teamId)}`:"")); H.error=""; }
+  catch(e){ if(e.status===404 && H.teamId){ H.teamId=null; store.set("glow-team",null); return loadHunt(); } H.error=e.message; }
+  H.loading = false; renderHunt();
+}
+function weekTowns(checks){
+  const now=new Date(); const day=(now.getDay()+6)%7; const mon=new Date(now); mon.setDate(now.getDate()-day);
+  const monStr=mon.getFullYear()+"-"+String(mon.getMonth()+1).padStart(2,"0")+"-"+String(mon.getDate()).padStart(2,"0");
+  return new Set(checks.filter(c=>c.day>=monStr).map(c=>c.city)).size;
+}
+function renderHunt(){
+  const el=$("#huntBody"), data=H.data;
+  if(!data){ el.innerHTML = H.error ? `<div class="empty">${esc(H.error)} <button class="linkbtn" onclick="loadHunt()">Try again</button></div>` : `<div class="empty">Loading the Family Hunt…</div>`; return; }
+  const counties = data.counties||[];
+  if(!data.team){
+    el.innerHTML = `<div class="huntgrid"><div class="huntmain">
+      <div class="joincard">
+        <h2 class="sec" style="margin:0">The Glow Family Hunt</h2>
+        <p style="margin:0;color:var(--frost);max-width:60ch">Families compete all season. Check in at light displays and snap photos of the finds on your list. AI checks each photo in seconds, and points go straight onto your county leaderboard.</p>
+        <div class="meta"><span class="badge b-feat">Hunt Pass $4.99 per family · whole season</span><span>Prizes from Featured businesses</span></div>
+        <form id="createTeam" class="grid2" novalidate>
+          <div class="field"><label class="label" for="ctName">Team name</label><input type="text" id="ctName" maxlength="30" placeholder="The Holly Jolly Crew"></div>
+          <div class="field"><label class="label" for="ctCounty">Home county</label><select id="ctCounty"><option value="">Choose…</option>${counties.map(c=>`<option>${c}</option>`).join("")}</select></div>
+          <div class="actions" style="grid-column:1/-1"><button class="btn primary" type="submit">${data.paymentsReady?"Start a team · $4.99":"Start a team"}</button></div>
+        </form>
+        <div id="ctMsg"></div>
+      </div>
+      <div class="joincard">
+        <h4 style="margin:0">Already have a team on another phone?</h4>
+        <form id="joinTeam" class="row" novalidate><input type="text" id="jtCode" maxlength="6" placeholder="Team code" style="max-width:160px;text-transform:uppercase"><button class="btn" type="submit">Join team</button></form>
+        <div id="jtMsg"></div>
+      </div>
+      <div class="safety">Passengers only. Check-ins and photos are for when the car is parked.</div>
+    </div><aside class="huntside">${boardHtml(data)}${prizeHtml()}</aside></div>`;
+    $("#createTeam").onsubmit=async e=>{ e.preventDefault(); const msg=$("#ctMsg"); const btn=e.target.querySelector("button"); btn.disabled=true;
+      try{ const r=await api("/api/hunt",{method:"POST",body:{action:"create",name:$("#ctName").value,county:$("#ctCounty").value}});
+        H.teamId=r.team_id; store.set("glow-team",r.team_id);
+        if(r.checkoutUrl){ msg.innerHTML=`<div class="note">Taking you to checkout…</div>`; location.href=r.checkoutUrl; return; }
+        await loadHunt(); toast("Your team is ready!"); }
+      catch(err){ msg.innerHTML=`<div class="err">${esc(err.message)}</div>`; btn.disabled=false; } };
+    $("#joinTeam").onsubmit=async e=>{ e.preventDefault(); const msg=$("#jtMsg");
+      try{ const r=await api("/api/hunt",{method:"POST",body:{action:"join",code:$("#jtCode").value}}); H.teamId=r.team_id; store.set("glow-team",r.team_id); await loadHunt(); toast("You joined the team!"); }
+      catch(err){ msg.innerHTML=`<div class="err">${esc(err.message)}</div>`; } };
+    bindBoard(); return;
+  }
+  const t=data.team, checks=data.checkins||[], found=data.found||{};
+  const wt=Math.min(weekTowns(checks),3);
+  const approved=Object.keys(found).length, towns=new Set(checks.map(c=>c.city)).size;
+  const music=new Set(checks.filter(c=>c.type==="music").map(c=>c.display_id)).size, spot=checks.some(c=>c.spotlight);
+  const B=[["Road Tripper","Check in in 5 towns",towns>=5,`${Math.min(towns,5)}/5`],["Sharp Eye","5 photo finds",approved>=5,`${Math.min(approved,5)}/5`],["Music Lover","Check in at 2 music shows",music>=2,`${Math.min(music,2)}/2`],["Bonus Hunter","Visit a Homeowner Pick",spot,spot?"1/1":"0/1"],["Full Sleigh",`All ${data.finds.length} photo finds`,approved>=data.finds.length,`${approved}/${data.finds.length}`]];
+  const rank = t.paid ? (H.scope==="county" ? `#${t.rankCounty} of ${t.countyTotal} in ${esc(t.county)} County` : `#${t.rankState} of ${t.stateTotal} statewide`) : "Not on the leaderboard yet";
+  el.innerHTML = `<div class="huntgrid"><div class="huntmain">
+    <div class="teamcard">
+      <div class="row" style="justify-content:space-between;align-items:start">
+        <div class="field" style="flex:1 1 200px"><label class="label" for="teamName">Your family team</label><input type="text" id="teamName" maxlength="30" value="${esc(t.name)}"></div>
+        <div class="field"><label class="label" for="teamCounty">Home county</label><select id="teamCounty">${counties.map(c=>`<option ${c===t.county?"selected":""}>${c}</option>`).join("")}</select></div>
+      </div>
+      <div class="score"><b>${t.points}</b><span style="color:var(--frost)">points · ${rank}</span></div>
+      <div class="row"><span class="note">Team code for other family phones:</span> <span class="code">${esc(t.code)}</span> <button type="button" class="linkbtn" id="copyCode">Copy</button></div>
+      ${t.paid?`<div class="row"><span class="badge b-feat">Hunt Pass active</span></div>`:`<div class="box" style="background:#2A2410;border-color:#6E5A1C"><b style="color:var(--warm)">Finish your Hunt Pass to start earning points.</b><div class="actions"><button class="btn primary" type="button" id="payPass">Get the Hunt Pass · $4.99</button></div><div class="note" id="payNote"></div></div>`}
+    </div>
+    <div class="safety">Passengers only. Check in and take photos once the car is parked.</div>
+    <div class="box" style="background:var(--panel)"><h4>Weekly challenge · +30 points</h4><div style="font-size:14px">Check in at displays in 3 different towns this week.</div><div class="progress"><i style="width:${wt/3*100}%"></i></div><div class="note">${wt>=3?"Complete! Bonus added.":`${wt} of 3 towns`}</div></div>
+    <div><h2 class="sec">Photo finds</h2>
+      <p class="note" style="margin:4px 0 10px;font-size:13px">Take a photo of each find. AI checks it in a few seconds and adds your points. Photograph the decorations, not people: photos with faces aren't accepted. Photos aren't saved.</p>
+      <div class="finds" id="finds">${data.finds.map(f=>findHtml(f,found[f.id],t.paid)).join("")}</div></div>
+    <div><h2 class="sec">Check-ins</h2>
+      <p class="note" style="margin:4px 0 10px;font-size:13px">Open any display and tap <b>Check in here</b> while you're there. 10 points per display, 15 at Featured businesses, 20 at Homeowner Pick bonus stops. One check-in per display per day.</p>
+      ${checks.length?`<div class="clist">${checks.slice(0,12).map(c=>`<div class="crow"><span>${esc(c.name||"Display")} <span class="note">· ${esc(c.city||"")} · ${fmtDate(c.day)}</span></span><b style="color:var(--amber)">+${c.points}</b></div>`).join("")}</div>`:`<div class="empty">No check-ins yet. Plan a tour and check in at each stop.</div>`}</div>
+    <div><h2 class="sec">Badges</h2><div class="badges" style="margin-top:10px">${B.map(([n,dsc,on,p])=>`<div class="bdg ${on?"on":""}"><b>${on?"★ ":""}${n}</b>${dsc}<div class="note">${p}</div></div>`).join("")}</div></div>
+    <p class="note"><button type="button" class="small" id="leaveTeam">Leave this team on this phone</button></p>
+  </div><aside class="huntside">${boardHtml(data)}${prizeHtml()}</aside></div>`;
+  $("#teamName").onchange=e=>api("/api/hunt",{method:"POST",body:{action:"update",team_id:t.id,name:e.target.value}}).then(loadHunt).catch(err=>toast(err.message));
+  $("#teamCounty").onchange=e=>api("/api/hunt",{method:"POST",body:{action:"update",team_id:t.id,county:e.target.value}}).then(loadHunt).catch(err=>toast(err.message));
+  $("#copyCode").onclick=()=>share("Join our Glow team", `Join our Glow Family Hunt team! Open https://letsglowwww.com/#hunt and enter code ${t.code}`);
+  const pay=$("#payPass"); if(pay) pay.onclick=async()=>{ pay.disabled=true; try{ const r=await api("/api/hunt",{method:"POST",body:{action:"pay",team_id:t.id}}); if(r.checkoutUrl) location.href=r.checkoutUrl; else loadHunt(); }catch(e){ $("#payNote").textContent=e.message; pay.disabled=false; } };
+  $("#leaveTeam").onclick=()=>{ const b=$("#leaveTeam"); if(b.dataset.sure){ H.teamId=null; store.set("glow-team",null); H.data=null; loadHunt(); } else { b.dataset.sure="1"; b.textContent="Tap again to leave. You can rejoin with the team code."; } };
+  bindBoard();
+}
+function findHtml(f, done, paid){
+  const p=H.pending[f.id], th=H.photos[f.id];
+  let body="";
+  if(done) body=`${th?`<img class="thumb" src="${th}" alt="Your photo">`:""}<div class="verdict ok">✓ ${esc(done.reason||"Approved")}</div>`;
+  else if(p && p.status==="reviewing") body=`${th?`<img class="thumb" src="${th}" alt="Your photo">`:""}<div class="verdict wait"><span class="spin"></span>AI is checking your photo…</div>`;
+  else if(p && p.status==="rejected") body=`${th?`<img class="thumb" src="${th}" alt="Your photo">`:""}<div class="verdict no">${esc(p.reason)}</div><button type="button" class="btn" data-snap="${f.id}">Try another photo</button>`;
+  else body=`<button type="button" class="btn primary" data-snap="${f.id}" ${paid?"":"disabled title='Get the Hunt Pass first'"}>📷 Take photo</button>`;
+  return `<div class="find ${done?"ok":""}"><div class="top"><b>${esc(f.name)}</b><span class="pts">${done?"✓ ":""}${f.pts} pts</span></div>${body}</div>`;
+}
+function boardHtml(data){
+  const list = H.scope==="county" ? (data.county||[]) : (data.state||[]);
+  const title = H.scope==="county" ? (data.countyName?`${esc(data.countyName)} County`:"Pick a county") : "Statewide";
+  return `<div class="board"><div class="boardhead"><h3>Leaderboard</h3><div class="seg" id="scopeSeg"><button type="button" data-v="county" aria-pressed="${H.scope==="county"}">County</button><button type="button" data-v="state" aria-pressed="${H.scope==="state"}">Statewide</button></div></div>
+    <div class="note" style="padding:0 14px 8px">${title}</div>
+    ${list.length? list.map((x,i)=>`<div class="brow ${x.me?"me":""} ${i<3?"top3":""}"><span class="rank">${i+1}</span><span style="min-width:0"><b>${esc(x.name)}${x.me?" (you)":""}</b><small>${esc(x.county)} County</small></span><b>${x.points}</b></div>`).join("") : `<div class="brow"><span></span><span class="note">No teams yet. Be the first!</span><span></span></div>`}
+    <div class="note" style="padding:8px 14px 12px">Only team names are shown, never real names or photos.</div></div>`;
+}
+function prizeHtml(){ return `<div class="box" style="background:var(--panel)"><h4>Prizes</h4><div style="font-size:14px;color:var(--frost)">${esc(PRIZE_TEXT)}</div></div>`; }
+function bindBoard(){ const seg=$("#scopeSeg"); if(seg) seg.onclick=e=>{ const b=e.target.closest("button"); if(!b) return; H.scope=b.dataset.v; renderHunt(); }; }
+
+$("#huntBody").addEventListener("click", e=>{ const b=e.target.closest("[data-snap]"); if(!b||b.disabled) return; currentFind=b.dataset.snap; const inp=$("#photoInput"); inp.value=""; inp.click(); });
+$("#photoInput").addEventListener("change", async e=>{
+  const file=e.target.files && e.target.files[0], id=currentFind; if(!file||!id||!H.teamId) return;
+  let dataUrl;
+  try{ dataUrl = await shrink(file); }catch(err){ toast("That photo couldn't be read. Try another one."); return; }
+  H.photos[id]=dataUrl; H.pending[id]={status:"reviewing"}; renderHunt();
+  try{
+    const r=await api("/api/photo",{method:"POST",body:{team_id:H.teamId, find_id:id, image:dataUrl}});
+    if(r.approved){ delete H.pending[id]; toast(r.points?`Approved! +${r.points} points`:"Approved!"); await loadHunt(); }
+    else { H.pending[id]={status:"rejected", reason:r.reason}; renderHunt(); }
+  }catch(err){ H.pending[id]={status:"rejected", reason:err.message}; renderHunt(); }
+});
+async function shrink(file){
+  const max=1280;
+  const bmp = await (window.createImageBitmap ? createImageBitmap(file, {imageOrientation:"from-image"}).catch(()=>createImageBitmap(file)) : Promise.reject());
+  const s=Math.min(1, max/Math.max(bmp.width,bmp.height));
+  const c=document.createElement("canvas"); c.width=Math.round(bmp.width*s); c.height=Math.round(bmp.height*s);
+  c.getContext("2d").drawImage(bmp,0,0,c.width,c.height);
+  return c.toDataURL("image/jpeg",0.82);
+}
+
+// ---------- add a display ----------
+function buildAdd(){
+  $("#fType").innerHTML=Object.entries(TYPES).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join("");
+  $("#fTags").innerHTML=AMEN.map(a=>`<button type="button" class="chip" data-tag="${esc(a)}" aria-pressed="false">${esc(a)}</button>`).join("");
+  $("#fTags").onclick=e=>{ const b=e.target.closest("[data-tag]"); if(b) b.setAttribute("aria-pressed", b.getAttribute("aria-pressed")!=="true"); };
+  $("#addForm").addEventListener("submit", async e=>{
+    e.preventDefault(); const v=id=>$(id).value.trim(); const msg=$("#formMsg"); const btn=$("#addSubmit");
+    const errs=[];
+    if(!v("#fName")) errs.push("Add a display name.");
+    if(!v("#fStreet")||!v("#fCity")) errs.push("Add the street address and city.");
+    if(!/^(27|28)\d{3}$/.test(v("#fZip"))) errs.push("Enter a North Carolina ZIP code (starts with 27 or 28).");
+    if($("#fCost").value==="paid" && !v("#fPrice")) errs.push("Add the price for a paid display.");
+    if(!/^\S+@\S+\.\S+$/.test(v("#fEmail"))) errs.push("Enter an email so we can tell you when it's approved.");
+    if(errs.length){ msg.innerHTML=errs.map(x=>`<div class="err">${esc(x)}</div>`).join(""); return; }
+    btn.disabled=true; btn.textContent="Submitting…"; msg.innerHTML="";
+    try{
+      const r=await api("/api/displays",{method:"POST",body:{name:v("#fName"),type:$("#fType").value,street:v("#fStreet"),city:v("#fCity"),zip:v("#fZip"),cost:$("#fCost").value,price:v("#fPrice"),hours:v("#fHours"),fm:v("#fFm"),start_date:$("#fStart").value,end_date:$("#fEnd").value,description:v("#fDesc"),url:v("#fUrl"),plan:$("#fPlan").value,email:v("#fEmail"),tags:[...document.querySelectorAll("#fTags [aria-pressed=true]")].map(b=>b.dataset.tag)}});
+      if(r.checkoutUrl){ msg.innerHTML=`<div class="note">Taking you to checkout…</div>`; location.href=r.checkoutUrl; return; }
+      msg.innerHTML=`<div class="ok"><b>${esc(v("#fName"))}</b> is submitted. We'll review it and email you when it's on the map.</div>`;
+      e.target.reset(); document.querySelectorAll("#fTags .chip").forEach(b=>b.setAttribute("aria-pressed","false"));
+    }catch(err){ msg.innerHTML=`<div class="err">${esc(err.message)}</div>`; }
+    btn.disabled=false; btn.textContent="Submit for review";
+  });
+}
+
+// ---------- controls ----------
+function buildControls(){
+  const towns = Object.keys(TOWNS);
+  $("#town").innerHTML=`<option value="all">All of North Carolina</option><option value="me">My location</option>`+towns.map(t=>`<option>${t}</option>`).join("");
+  $("#tourStart").innerHTML=`<option value="first">First stop</option><option value="me">My location</option>`+towns.map(t=>`<option>${t}</option>`).join("");
+  $("#typeChips").innerHTML=Object.entries(TYPES).map(([k,v])=>`<button type="button" class="chip" data-type="${k}" aria-pressed="true"><span class="dot" style="background:${v.color};box-shadow:0 0 6px ${v.color}"></span>${v.label}</button>`).join("");
+  $("#amenChips").innerHTML=AMEN.map(a=>`<button type="button" class="chip" data-amen="${esc(a)}" aria-pressed="false">${esc(a)}</button>`).join("");
+  $("#legend").innerHTML=Object.values(TYPES).map(v=>`<span><i style="background:${v.color};box-shadow:0 0 6px ${v.color}"></i>${v.label}</span>`).join("")+`<span><i style="border:2px solid var(--gold);width:10px;height:10px"></i>Featured</span><span><i style="border:2px dashed var(--copper);width:10px;height:10px"></i>Homeowner Pick</span>`;
+  const y=new Date().getFullYear(); const dt=$("#date"); dt.min=`${y}-11-01`; dt.max=`${y+1}-01-15`;
+  $("#q").addEventListener("input",e=>{S.q=e.target.value;renderAll();});
+  $("#town").addEventListener("change",async e=>{ if(e.target.value==="me"){ const ok=await locate(); if(!ok){ e.target.value=S.town; return; } } S.town=e.target.value; renderAll(); });
+  $("#radius").addEventListener("input",e=>{S.radius=+e.target.value;$("#radiusVal").textContent=S.radius; if(S.town==="all"){ if(myLoc){S.town="me";} else {S.town="Raleigh";} $("#town").value=S.town; } renderAll();});
+  $("#useLoc").onclick=async()=>{ if(await locate()){ S.town="me"; $("#town").value="me"; S.sort="distance"; $("#sort").value="distance"; renderAll(); } };
+  $("#typeChips").addEventListener("click",e=>{const b=e.target.closest("[data-type]");if(!b)return;const k=b.dataset.type;
+    if(S.types.size===Object.keys(TYPES).length){S.types=new Set([k]);} else if(S.types.has(k)){S.types.delete(k); if(!S.types.size) S.types=new Set(Object.keys(TYPES));} else S.types.add(k);
+    document.querySelectorAll("[data-type]").forEach(x=>x.setAttribute("aria-pressed",S.types.has(x.dataset.type)));renderAll();});
+  $("#costSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;S.cost=b.dataset.v;$("#costSeg").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));renderAll();});
+  $("#orderSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;S.order=b.dataset.v;$("#orderSeg").querySelectorAll("button").forEach(x=>x.setAttribute("aria-pressed",x===b));renderAll();});
+  $("#sort").addEventListener("change",e=>{S.sort=e.target.value;renderAll();});
+  $("#date").addEventListener("change",e=>{S.date=e.target.value;renderAll();});
+  $("#clearDate").onclick=()=>{S.date="";$("#date").value="";renderAll();};
+  $("#amenChips").addEventListener("click",e=>{const b=e.target.closest("[data-amen]");if(!b)return;const a=b.dataset.amen;S.amen.has(a)?S.amen.delete(a):S.amen.add(a);b.setAttribute("aria-pressed",S.amen.has(a));renderAll();});
+  $("#tourStart").addEventListener("change",async e=>{ if(e.target.value==="me" && !(await locate())){ e.target.value=S.tourStart; return; } S.tourStart=e.target.value; renderAll(); });
+  $("#cards").addEventListener("click",e=>{const o=e.target.closest("[data-open]"); if(o) return openSheet(+o.dataset.open); const t=e.target.closest("[data-tour]"); if(t) toggleTour(+t.dataset.tour);});
+  $("#yr").textContent=y; const cl=$("#contactLink"); cl.href="mailto:"+CONTACT_EMAIL; cl.textContent=CONTACT_EMAIL;
+}
+async function locate(){
+  $("#locNote").textContent="Finding you…";
+  try{ const p=await getLocation(); myLoc=[p.coords.latitude,p.coords.longitude]; $("#locNote").textContent=""; return true; }
+  catch(e){ $("#locNote").textContent=e.message; return false; }
+}
+
+// ---------- tabs / routing ----------
+function route(){
+  const h=(location.hash||"#find").slice(1);
+  S.tab=["find","tour","hunt","add"].includes(h)?h:"find";
+  ["find","tour","hunt","add"].forEach(t=>{ const a=$("#tab-"+t); if(S.tab===t) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
+  $("#view-map").hidden = !(S.tab==="find"||S.tab==="tour");
+  $("#view-hunt").hidden = S.tab!=="hunt"; $("#view-add").hidden = S.tab!=="add";
+  $("#panel-find").hidden = S.tab!=="find"; $("#panel-tour").hidden = S.tab!=="tour";
+  if(S.tab==="hunt" && !H.loading) loadHunt();
+  renderAll();
+  if(map && !$("#view-map").hidden) setTimeout(()=>map.invalidateSize(),50);
+}
+function renderAll(){ const list=filtered(); renderList(list); renderTour(); if(!$("#view-map").hidden) renderMap(list); }
+
+async function loadDisplays(){
+  try{ const r=await api("/api/displays"); D=(r.displays||[]).map(d=>({...d, rating:Number(d.rating)||0, n_ratings:Number(d.n_ratings)||0})); loaded=true; loadError=""; }
+  catch(e){ if(!loaded) loadError=e.message; }
+  renderAll();
+}
+
+// ---------- return from Stripe checkout ----------
+function handleReturn(){
+  const p=new URLSearchParams(location.search); const paid=p.get("paid"); if(!paid) return;
+  history.replaceState(null,"",location.pathname+location.hash);
+  if(paid==="hunt"){ toast("Payment received. Activating your Hunt Pass…"); let tries=0; const poll=async()=>{ await loadHunt(); if(H.data?.team?.paid){ toast("Your Hunt Pass is active. Happy hunting!"); return; } if(++tries<10) setTimeout(poll,2500); }; setTimeout(poll,1500); }
+  else if(paid==="spot"||paid==="featured"){ $("#paidMsg").innerHTML=`<div class="ok">Payment received, thank you! Your display is in the review line, and your ${paid==="spot"?"Spotlight boost":"Featured listing"} turns on as soon as it's approved.</div>`; }
+  else if(paid==="cancelled"){ toast("Checkout cancelled. You can finish it any time."); }
+}
+
+// ---------- install to home screen ----------
+let deferredPrompt=null;
+function setupInstall(){
+  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  if(standalone || store.get("glow-install-dismissed",0) > Date.now()) return;
+  const bar=$("#installBar"), txt=$("#installText"), btn=$("#installBtn");
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+  if(ios){ txt.innerHTML=`<b>Add Glow to your Home Screen:</b> tap the Share button <span aria-hidden="true">⬆︎</span>, then <b>Add to Home Screen</b>.`; bar.hidden=false; }
+  window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferredPrompt=e; txt.innerHTML=`<b>Install Glow</b> on your phone for one-tap access all season.`; btn.hidden=false; bar.hidden=false; });
+  btn.onclick=async()=>{ if(!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt=null; bar.hidden=true; };
+  $("#installDismiss").onclick=()=>{ store.set("glow-install-dismissed", Date.now()+7*864e5); bar.hidden=true; };
+}
+
+// ---------- start ----------
+initMap(); buildControls(); buildAdd(); handleReturn(); setupInstall();
+window.addEventListener("hashchange", route);
+route(); loadDisplays();
+setInterval(()=>{ if(document.visibilityState==="visible") loadDisplays(); }, 120000);
+if("serviceWorker" in navigator) window.addEventListener("load", ()=>navigator.serviceWorker.register("/sw.js").catch(()=>{}));
+</script>
+</body>
+</html>

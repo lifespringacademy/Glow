@@ -63,6 +63,7 @@ th{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.06em
       <button type="button" data-t="pending" aria-pressed="true">Waiting for review <span id="pendCount"></span></button>
       <button type="button" data-t="all" aria-pressed="false">All displays</button>
       <button type="button" data-t="add" aria-pressed="false">Add a display</button>
+      <button type="button" data-t="import" aria-pressed="false">Import CSV</button>
       <button type="button" data-t="teams" aria-pressed="false">Hunt teams</button>
       <button type="button" id="signout">Sign out</button>
     </div>
@@ -73,7 +74,8 @@ th{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.06em
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const TYPES={home:"Home display",hood:"Neighborhood",drive:"Drive-thru",walk:"Walk-through",music:"Music light show",town:"Town event"};
+const TYPES={home:"Home display",hood:"Neighborhood",drive:"Drive-thru",walk:"Walk-through",music:"Music light show",town:"Town event",ride:"Hayride or train"};
+const SITE="https://letsglowwww.com", OWNER_NAME="Dawn";   // used in the outreach email
 const AMEN=["Santa visits","Hot cocoa","Wheelchair friendly","Stroller friendly","Pets welcome","Restrooms","Synced to FM"];
 const PLANS={home:"Home (free)",spot:"Home + Spotlight",basic:"Business basic",featured:"Featured business"};
 const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -98,11 +100,12 @@ async function load(){
   try{
     if(tab==="teams"){ const r=await api("/api/admin?view=teams"); return renderTeams(r.teams); }
     if(tab==="add"){ return renderForm(null); }
+    if(tab==="import"){ return renderImport(); }
     const r=await api("/api/admin?view="+(tab==="pending"?"pending":"all")); rows=r.displays;
     if(tab==="pending"){ $("#pendCount").textContent=rows.length?`(${rows.length})`:""; renderPending(); } else renderAll();
   }catch(err){ if(err.status===401){ try{ sessionStorage.removeItem("glow-admin"); }catch(e){} location.reload(); } v.innerHTML=`<div class="err">${esc(err.message)}</div>`; }
 }
-function badges(d){ return `<span class="badge ${d.status==="approved"?"b-ok":d.status==="pending"?"b-pend":"b-no"}">${d.status}</span>${d.featured?`<span class="badge b-feat">Featured</span>`:""}${d.spotlight?`<span class="badge b-spot">Spotlight</span>`:""}${d.paid?`<span class="badge b-paid">Paid</span>`:""}${d.lights_out?`<span class="badge b-no">Lights off</span>`:""}`; }
+function badges(d){ return `<span class="badge ${d.status==="approved"?"b-ok":d.status==="pending"?"b-pend":"b-no"}">${d.status}</span>${d.featured?`<span class="badge b-feat">Featured</span>`:""}${d.spotlight?`<span class="badge b-spot">Spotlight</span>`:""}${d.paid?`<span class="badge b-paid">Paid</span>`:""}${d.lights_out?`<span class="badge b-no">Lights off</span>`:""}${d.claim_email?`<span class="badge b-pend" title="${esc(d.claim_name||"")} ${esc(d.claim_email)}">Claimed</span>`:""}`; }
 function renderPending(){
   const v=$("#view");
   if(!rows.length){ v.innerHTML=`<div class="card"><b>Nothing waiting for review.</b><div class="note">New submissions show up here.</div></div>`; return; }
@@ -124,7 +127,7 @@ function renderAll(){
   <div class="tablebox" style="margin-top:12px"><table><thead><tr><th>Display</th><th>City</th><th>Status</th><th>Quick changes</th><th></th></tr></thead><tbody>
   ${list.map(d=>`<tr><td><b>${esc(d.name)}</b><div class="note">${esc(TYPES[d.type]||"")} · ${esc(PLANS[d.plan]||"")}</div></td><td>${esc(d.city)}</td><td><div class="meta">${badges(d)}</div></td>
   <td><div class="actions"><button class="btn" data-toggle="featured" data-id="${d.id}">${d.featured?"Unfeature":"Feature"}</button><button class="btn" data-toggle="spotlight" data-id="${d.id}">${d.spotlight?"Remove spotlight":"Spotlight"}</button><button class="btn" data-toggle="lights_out" data-id="${d.id}">${d.lights_out?"Lights back on":"Lights off"}</button></div></td>
-  <td><button class="btn" data-edit="${d.id}">Edit</button></td></tr>`).join("")||`<tr><td colspan="5" class="note">No displays.</td></tr>`}
+  <td><div class="actions"><button class="btn" data-edit="${d.id}">Edit</button>${d.status==="approved"&&d.type!=="home"&&d.type!=="hood"&&!d.featured?`<button class="btn" data-outreach="${d.id}">Outreach email</button>`:""}</div>${d.claim_email?`<div class="note">Claimed by ${esc(d.claim_name||"")} · ${esc(d.claim_email)}</div>`:""}</td></tr>`).join("")||`<tr><td colspan="5" class="note">No displays.</td></tr>`}
   </tbody></table></div>`;
   $("#srch").oninput=e=>{ search=e.target.value; const pos=e.target.selectionStart; renderAll(); const s=$("#srch"); s.focus(); s.setSelectionRange(pos,pos); };
   bindRowButtons();
@@ -134,6 +137,7 @@ function bindRowButtons(){
   v.querySelectorAll("[data-approve]").forEach(b=>b.onclick=()=>act({action:"approve",id:+b.dataset.approve},"Approved. It's on the map."));
   v.querySelectorAll("[data-reject]").forEach(b=>b.onclick=()=>{ if(b.dataset.sure) return act({action:"reject",id:+b.dataset.reject},"Rejected"); b.dataset.sure=1; b.textContent="Tap again to reject"; });
   v.querySelectorAll("[data-edit]").forEach(b=>b.onclick=()=>{ const d=rows.find(x=>x.id===+b.dataset.edit); openEdit(d); });
+  v.querySelectorAll("[data-outreach]").forEach(b=>b.onclick=()=>openOutreach(rows.find(x=>x.id===+b.dataset.outreach)));
   v.querySelectorAll("[data-toggle]").forEach(b=>b.onclick=()=>{ const d=rows.find(x=>x.id===+b.dataset.id); const k=b.dataset.toggle; act({action:"update",id:d.id,fields:{[k]:!d[k]}},"Saved"); });
 }
 async function act(body,msg){ try{ await api("/api/admin",{method:"POST",body}); toast(msg); load(); }catch(e){ toast(e.message); } }
@@ -186,6 +190,87 @@ function openEdit(d){
   $("#editf").onsubmit=e=>{ e.preventDefault(); save(false); };
   const sa=$("#esaveapprove"); if(sa) sa.onclick=()=>save(true);
   $("#edelete").onclick=e=>{ const b=e.currentTarget; if(!b.dataset.sure){ b.dataset.sure=1; b.textContent="Tap again to delete for good"; return; } close(); act({action:"delete",id:d.id},"Deleted"); };
+}
+// ---------- outreach email for a business listing ----------
+function outreachText(d){
+  const listing=`${SITE}/?listing=${d.id}`, claim=`${SITE}/?claim=${d.id}`;
+  return {subject:`${d.name} is on Glow, the NC Christmas lights map`,
+  body:`Hi ${d.name} team,
+
+I'm ${OWNER_NAME}, and I run Glow (letsglowwww.com), a new map that helps North Carolina families find Christmas light displays, check live wait times and plan a route for the night.
+
+${d.name} is already on the map, free:
+${listing}
+
+For $49 for the whole season, you can make it a Featured listing:
+- A gold pin and Featured badge on the map
+- The top spot when families search nearby
+- A "Buy tickets" button on your listing
+- A bonus stop in our Family Hunt, a scavenger-hunt competition that sends families out to visit displays
+
+You can upgrade in about a minute here:
+${claim}
+
+If any of your details need fixing (dates, hours, prices or your website), just reply and I'll update them.
+
+Thanks, and happy holidays!
+${OWNER_NAME}
+Glow · letsglowwww.com`};
+}
+function openOutreach(d){
+  const t=outreachText(d);
+  const bd=document.createElement("div"); bd.className="backdrop";
+  bd.innerHTML=`<div class="modal"><div class="meta" style="justify-content:space-between"><b style="font-size:18px">Outreach email: ${esc(d.name)}</b><button type="button" class="btn" id="oclose">Close</button></div>
+    <div class="field"><label class="label" for="osub">Subject</label><input type="text" id="osub" value="${esc(t.subject)}"></div>
+    <div class="field"><label class="label" for="obody">Message</label><textarea id="obody" style="min-height:340px">${esc(t.body)}</textarea></div>
+    <div class="note">Find the business's email on its website (link: ${d.url?`<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.url)}</a>`:"none saved"}). Copy this into your email app and send it from your Glow address.</div>
+    <div class="actions"><button type="button" class="btn primary" id="ocopy">Copy message</button><button type="button" class="btn" id="ocopys">Copy subject</button></div></div>`;
+  document.body.appendChild(bd);
+  const copy=async(txt,msg)=>{ try{ await navigator.clipboard.writeText(txt); toast(msg); }catch(e){ toast("Select the text and copy it"); } };
+  $("#oclose").onclick=()=>bd.remove(); bd.onclick=e=>{ if(e.target===bd) bd.remove(); };
+  $("#ocopy").onclick=()=>copy($("#obody").value,"Message copied"); $("#ocopys").onclick=()=>copy($("#osub").value,"Subject copied");
+}
+
+// ---------- import a CSV of displays ----------
+function parseCSV(text){
+  const rows=[]; let row=[], cell="", q=false;
+  for(let i=0;i<text.length;i++){ const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){ cell+='"'; i++; } else q=false; } else cell+=c; }
+    else if(c==='"') q=true; else if(c===','){ row.push(cell); cell=""; }
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n') i++; row.push(cell); if(row.some(x=>x.trim()!=="")) rows.push(row); row=[]; cell=""; }
+    else cell+=c; }
+  row.push(cell); if(row.some(x=>x.trim()!=="")) rows.push(row);
+  if(!rows.length) return [];
+  const head=rows[0].map(h=>h.trim().toLowerCase());
+  return rows.slice(1).map(r=>Object.fromEntries(head.map((h,i)=>[h,(r[i]??"").trim()])));
+}
+function renderImport(){
+  $("#view").innerHTML=`<div class="card">
+    <b style="font-size:17px">Import displays from a CSV file</b>
+    <div class="note">Columns: name, type (home, hood, drive, walk, music, town, ride), street, city, zip, lat, lon, cost (free or paid), price, hours, start_date, end_date (YYYY-MM-DD), fm, url, description, tags (separated by ;). Extra columns are ignored. Rows need a street address or lat/lon. Displays already on the map (same name and city) are skipped. Imported displays go live right away.</div>
+    <div class="field"><label class="label" for="csvFile">CSV file</label><input type="file" id="csvFile" accept=".csv,text/csv"></div>
+    <div id="csvPreview"></div>
+  </div>`;
+  $("#csvFile").onchange=async e=>{
+    const f=e.target.files[0]; if(!f) return;
+    const rows=parseCSV(await f.text());
+    const pv=$("#csvPreview");
+    if(!rows.length){ pv.innerHTML=`<div class="err">No rows found in that file.</div>`; return; }
+    pv.innerHTML=`<div class="tablebox" style="max-height:320px;overflow:auto"><table><thead><tr><th>Name</th><th>Type</th><th>City</th><th>Dates</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(TYPES[r.type]||r.type)}</td><td>${esc(r.city)}</td><td>${esc(r.start_date)} ${r.end_date?"→ "+esc(r.end_date):""}</td></tr>`).join("")}</tbody></table></div>
+      <div class="actions" style="margin-top:12px"><button class="btn primary" id="doImport">Import ${rows.length} display${rows.length===1?"":"s"}</button></div><div id="impResult"></div>`;
+    $("#doImport").onclick=async()=>{
+      const btn=$("#doImport"); btn.disabled=true; const out=$("#impResult"); const all=[];
+      for(let i=0;i<rows.length;i+=10){
+        btn.textContent=`Importing ${Math.min(i+10,rows.length)} of ${rows.length}…`;
+        try{ const r=await api("/api/admin",{method:"POST",body:{action:"import",rows:rows.slice(i,i+10)}}); all.push(...r.results); }
+        catch(err){ rows.slice(i,i+10).forEach(x=>all.push({name:x.name,ok:false,error:err.message})); }
+      }
+      const ok=all.filter(r=>r.ok).length, sk=all.filter(r=>r.skipped).length, bad=all.length-ok-sk;
+      btn.textContent="Done";
+      out.innerHTML=`<p class="ok">${ok} added${sk?`, ${sk} already on the map`:""}${bad?`, <span class="err">${bad} need attention</span>`:""}.</p>
+        ${bad?`<div class="tablebox"><table><thead><tr><th>Display</th><th>Problem</th></tr></thead><tbody>${all.filter(r=>!r.ok&&!r.skipped).map(r=>`<tr><td>${esc(r.name)}</td><td class="err">${esc(r.error)}</td></tr>`).join("")}</tbody></table></div><p class="note">Fix these in the file and import it again. Rows that worked will be skipped.</p>`:""}`;
+    };
+  };
 }
 function renderTeams(teams){
   $("#view").innerHTML=`<div class="meta"><span>${teams.filter(t=>t.paid).length} paid teams · ${teams.length} total</span></div><div class="tablebox" style="margin-top:12px"><table><thead><tr><th>#</th><th>Team</th><th>County</th><th>Points</th><th>Hunt Pass</th></tr></thead><tbody>

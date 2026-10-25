@@ -353,7 +353,8 @@ const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">Open
 const TYPES = {
   home:{label:"Home display", color:"#FFE08A"}, hood:{label:"Neighborhood", color:"#FFB347"},
   drive:{label:"Drive-thru", color:"#FF4D5E"}, walk:{label:"Walk-through", color:"#2FD08A"},
-  music:{label:"Music light show", color:"#6CC4FF"}, town:{label:"Town event", color:"#C89BFF"}
+  music:{label:"Music light show", color:"#6CC4FF"}, town:{label:"Town event", color:"#C89BFF"},
+  ride:{label:"Hayride or train", color:"#FF8FC7"}
 };
 const AMEN = ["Santa visits","Hot cocoa","Wheelchair friendly","Stroller friendly","Pets welcome","Restrooms","Synced to FM"];
 const TOWNS = {"Apex":[35.732,-78.850],"Asheboro":[35.708,-79.814],"Asheville":[35.595,-82.551],"Boone":[36.216,-81.675],"Burlington":[36.096,-79.437],"Cary":[35.791,-78.781],"Chapel Hill":[35.913,-79.056],"Charlotte":[35.227,-80.843],"Clayton":[35.651,-78.456],"Concord":[35.409,-80.579],"Durham":[35.994,-78.899],"Elizabeth City":[36.295,-76.251],"Fayetteville":[35.053,-78.878],"Fuquay-Varina":[35.584,-78.800],"Garner":[35.711,-78.614],"Gastonia":[35.262,-81.187],"Goldsboro":[35.385,-77.993],"Greensboro":[36.073,-79.792],"Greenville":[35.613,-77.366],"Hendersonville":[35.319,-82.461],"Hickory":[35.733,-81.341],"High Point":[35.956,-80.005],"Holly Springs":[35.651,-78.834],"Huntersville":[35.411,-80.843],"Jacksonville":[34.754,-77.430],"Kannapolis":[35.487,-80.622],"Kill Devil Hills":[36.031,-75.676],"Knightdale":[35.788,-78.481],"Lumberton":[34.618,-79.011],"Matthews":[35.117,-80.723],"McAdenville":[35.262,-81.078],"Mooresville":[35.585,-80.811],"Morehead City":[34.723,-76.726],"Morganton":[35.745,-81.685],"New Bern":[35.109,-77.044],"Raleigh":[35.780,-78.639],"Rocky Mount":[35.938,-77.791],"Salisbury":[35.671,-80.474],"Sanford":[35.480,-79.180],"Smithfield":[35.508,-78.339],"Southern Pines":[35.174,-79.392],"Statesville":[35.783,-80.887],"Wake Forest":[35.980,-78.510],"Wilmington":[34.226,-77.945],"Wilson":[35.722,-77.916],"Winston-Salem":[36.100,-80.244]};
@@ -387,7 +388,8 @@ function waitChip(w){ if(!w) return ""; const cls=w.m===0?"w0":w.m<=15?"w1":"w2"
 function todayStr(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function openOn(d,s){ if(!s) return true; if(d.start_date && s<d.start_date) return false; if(d.end_date && s>d.end_date) return false; if(!d.days||!d.days.length) return true; return d.days.includes(new Date(s+"T12:00:00").getDay()); }
 function fmtDate(s){ return s ? new Date(s+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"}) : ""; }
-function season(d){ return d.start_date||d.end_date ? `${fmtDate(d.start_date)||"Now"} – ${fmtDate(d.end_date)||"?"}` : ""; }
+function season(d){ if(d.start_date&&d.end_date) return d.start_date===d.end_date?fmtDate(d.start_date):`${fmtDate(d.start_date)} – ${fmtDate(d.end_date)}`; if(d.start_date) return `From ${fmtDate(d.start_date)}`; if(d.end_date) return `Through ${fmtDate(d.end_date)}`; return ""; }
+const canFeature = d => !d.featured && d.type!=="home" && d.type!=="hood";
 function center(){ if(S.town==="me" && myLoc) return myLoc; return TOWNS[S.town] || null; }
 function centerName(){ return S.town==="me" ? "you" : S.town; }
 function typeOf(d){ return TYPES[d.type] || TYPES.home; }
@@ -461,9 +463,10 @@ function card(d){
     <div class="meta"><span>${esc(d.city)}, NC${d.dist!=null?` · ${d.dist.toFixed(0)} mi`:""}</span>${d.n_ratings?`<span><span class="stars" aria-hidden="true">${stars(d.rating)}</span> ${d.rating.toFixed(1)} <span style="color:var(--dim)">(${d.n_ratings})</span></span>`:`<span class="note">No ratings yet</span>`}${waitChip(w)}</div>
     <div class="meta">${d.hours?`<span>${esc(d.hours)}</span>`:""}${season(d)?`<span>${season(d)}</span>`:""}${d.fm?`<span>Tune to FM ${esc(d.fm)}</span>`:""}</div>
     <div class="actions"><button type="button" class="btn ${inT?"in":"primary"}" data-tour="${d.id}">${inT?"✓ In your tour":"+ Add to tour"}</button><button type="button" class="btn" data-open="${d.id}">Details, rate, wait time</button></div>
+    ${canFeature(d)?`<div class="note">Run this? <button type="button" class="linkbtn" data-claim="${d.id}">Feature this listing</button></div>`:""}
   </article>`;
 }
-let loaded = false, loadError = "";
+let loaded = false, loadError = "", paymentsReady = false;
 function renderList(list){
   if(!loaded){ $("#resultCount").textContent = loadError ? "Couldn't load displays" : "Loading displays…"; $("#cards").innerHTML = loadError?`<div class="empty">${esc(loadError)} <button class="linkbtn" onclick="loadDisplays()">Try again</button></div>`:""; return; }
   $("#resultCount").textContent = `${list.length} display${list.length===1?"":"s"}`;
@@ -569,6 +572,7 @@ function openSheet(id){
     <div class="box"><h4>${mine?"Your rating":"Rate this display"}</h4><div class="rate" role="group" aria-label="Your rating">${[1,2,3,4,5].map(i=>`<button type="button" data-star="${i}" class="${i<=mine?"on":""}" aria-label="${i} star${i>1?"s":""}">★</button>`).join("")}</div></div>
     <div class="box"><h4>Family Hunt</h4><div class="note">Here with your family? Check in for ${pts} points. Passengers only, once you're parked.</div>
       <div><button type="button" class="btn primary" id="shCheck">Check in here</button></div></div>
+    ${canFeature(d)?`<div class="box" style="border-color:#6E5A1C"><h4>Run this business or event?</h4><div class="note">Get a gold pin, the top spot in nearby results, a ticket button and a Family Hunt bonus that sends families your way. $49 for the season.</div><div><button type="button" class="btn" id="shClaim">★ Feature this listing</button></div></div>`:""}
     <div class="actions"><button type="button" class="btn ${inT?"in":"primary"}" id="shTour">${inT?"✓ In your tour":"+ Add to tour"}</button>
       <a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}&travelmode=driving" target="_blank" rel="noopener">Directions</a>
       <button type="button" class="btn" id="shShare">Share</button>${d.url?`<a class="btn" href="${esc(d.url)}" target="_blank" rel="noopener">${d.cost==="paid"?"Buy tickets":"Website"}</a>`:""}</div>
@@ -587,6 +591,7 @@ function openSheet(id){
       myRatings[id]=s; store.set("glow-ratings",myRatings); close(); renderAll(); openSheet(id); toast("Rating saved. Thank you!"); }
     catch(e){ toast(e.message); } });
   bd.querySelector("#shTour").onclick=()=>{ toggleTour(id); close(); openSheet(id); };
+  const cl=bd.querySelector("#shClaim"); if(cl) cl.onclick=()=>{ close(); openClaim(id); };
   bd.querySelector("#shCheck").onclick=async(e)=>{
     if(!H.teamId){ close(); location.hash="#hunt"; toast("Start or join a Family Hunt team first."); return; }
     const btn=e.currentTarget; btn.disabled=true; btn.textContent="Checking your location…";
@@ -598,6 +603,49 @@ function openSheet(id){
     }catch(err){ toast(err.message); btn.disabled=false; btn.textContent="Check in here"; }
   };
   bd.querySelector("#shShare").onclick=()=>share(d.name, `${d.name} in ${d.city}, NC${d.hours?`: ${d.hours}`:""}. Found on Glow: https://letsglowwww.com\nDirections: https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}`);
+}
+
+// ---------- businesses: claim & feature a listing ----------
+function openClaim(id){
+  const d=D.find(x=>x.id===id); if(!d) return;
+  if(!canFeature(d)){ toast("This listing is already Featured."); return; }
+  const bd=document.createElement("div"); bd.className="backdrop";
+  bd.innerHTML=`<form class="sheet" role="dialog" aria-modal="true" aria-labelledby="cl-t" novalidate>
+    <div class="sheethead"><div style="display:grid;gap:6px"><span class="badge b-feat" style="justify-self:start">★ Featured listing</span><h2 id="cl-t">Feature ${esc(d.name)}</h2></div><button type="button" class="x" aria-label="Close">×</button></div>
+    <ul style="margin:0;padding-left:18px;color:var(--frost)">
+      <li>Gold pin and Featured badge on the map</li>
+      <li>Top of results for families searching nearby</li>
+      <li>"Buy tickets" or website button on your listing</li>
+      <li>Family Hunt bonus: families earn extra points for visiting you</li>
+    </ul>
+    <div class="score" style="gap:6px"><b style="font-size:36px">$49</b><span style="color:var(--frost)">for the whole ${new Date().getFullYear()} season</span></div>
+    <div class="grid2">
+      <div class="field"><label class="label" for="clName">Your name</label><input type="text" id="clName" maxlength="80" autocomplete="name"></div>
+      <div class="field"><label class="label" for="clEmail">Your email</label><input type="email" id="clEmail" maxlength="120" autocomplete="email"></div>
+    </div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;color:var(--frost)"><input type="checkbox" id="clAuth" style="margin-top:3px"> I own or manage this business or event.</label>
+    <div class="note">Need to fix hours, prices or your website link? Mention it to ${esc(CONTACT_EMAIL)} and we'll update your listing.</div>
+    <div id="clMsg"></div>
+    <div class="actions"><button class="btn primary" type="submit" id="clGo">Continue to secure checkout</button></div>
+  </form>`;
+  document.body.appendChild(bd);
+  const close=()=>bd.remove();
+  bd.querySelector(".x").onclick=close; bd.addEventListener("click",e=>{ if(e.target===bd) close(); });
+  bd.querySelector("form").onsubmit=async e=>{
+    e.preventDefault(); const msg=$("#clMsg"), btn=$("#clGo"); btn.disabled=true; btn.textContent="Starting checkout…";
+    try{ const r=await api("/api/displays",{method:"POST",body:{action:"claim",id,name:$("#clName").value,email:$("#clEmail").value,authorized:$("#clAuth").checked}});
+      if(r.checkoutUrl){ location.href=r.checkoutUrl; return; } }
+    catch(err){ msg.innerHTML=`<div class="err">${esc(err.message)}</div>`; }
+    btn.disabled=false; btn.textContent="Continue to secure checkout";
+  };
+  $("#clName").focus();
+}
+// Links like letsglowwww.com/?listing=12 or /?claim=12 (for outreach emails)
+function deepLink(){
+  const p=new URLSearchParams(location.search); const c=+p.get("claim"), l=+p.get("listing");
+  if(!c && !l) return;
+  history.replaceState(null,"",location.pathname+location.hash);
+  if(c && D.some(d=>d.id===c)) openClaim(c); else if(l && D.some(d=>d.id===l)) openSheet(l);
 }
 
 // ---------- Family Hunt ----------
@@ -773,7 +821,7 @@ function buildControls(){
   $("#clearDate").onclick=()=>{S.date="";$("#date").value="";renderAll();};
   $("#amenChips").addEventListener("click",e=>{const b=e.target.closest("[data-amen]");if(!b)return;const a=b.dataset.amen;S.amen.has(a)?S.amen.delete(a):S.amen.add(a);b.setAttribute("aria-pressed",S.amen.has(a));renderAll();});
   $("#tourStart").addEventListener("change",async e=>{ if(e.target.value==="me" && !(await locate())){ e.target.value=S.tourStart; return; } S.tourStart=e.target.value; renderAll(); });
-  $("#cards").addEventListener("click",e=>{const o=e.target.closest("[data-open]"); if(o) return openSheet(+o.dataset.open); const t=e.target.closest("[data-tour]"); if(t) toggleTour(+t.dataset.tour);});
+  $("#cards").addEventListener("click",e=>{const cl=e.target.closest("[data-claim]"); if(cl) return openClaim(+cl.dataset.claim); const o=e.target.closest("[data-open]"); if(o) return openSheet(+o.dataset.open); const t=e.target.closest("[data-tour]"); if(t) toggleTour(+t.dataset.tour);});
   $("#yr").textContent=y; const cl=$("#contactLink"); cl.href="mailto:"+CONTACT_EMAIL; cl.textContent=CONTACT_EMAIL;
 }
 async function locate(){
@@ -797,7 +845,7 @@ function route(){
 function renderAll(){ const list=filtered(); renderList(list); renderTour(); if(!$("#view-map").hidden) renderMap(list); }
 
 async function loadDisplays(){
-  try{ const r=await api("/api/displays"); D=(r.displays||[]).map(d=>({...d, rating:Number(d.rating)||0, n_ratings:Number(d.n_ratings)||0})); loaded=true; loadError=""; }
+  try{ const r=await api("/api/displays"); D=(r.displays||[]).map(d=>({...d, rating:Number(d.rating)||0, n_ratings:Number(d.n_ratings)||0})); paymentsReady=!!r.paymentsReady; const first=!loaded; loaded=true; loadError=""; if(first) setTimeout(deepLink,0); }
   catch(e){ if(!loaded) loadError=e.message; }
   renderAll();
 }
@@ -808,6 +856,7 @@ function handleReturn(){
   history.replaceState(null,"",location.pathname+location.hash);
   if(paid==="hunt"){ toast("Payment received. Activating your Hunt Pass…"); let tries=0; const poll=async()=>{ await loadHunt(); if(H.data?.team?.paid){ toast("Your Hunt Pass is active. Happy hunting!"); return; } if(++tries<10) setTimeout(poll,2500); }; setTimeout(poll,1500); }
   else if(paid==="spot"||paid==="featured"){ $("#paidMsg").innerHTML=`<div class="ok">Payment received, thank you! Your display is in the review line, and your ${paid==="spot"?"Spotlight boost":"Featured listing"} turns on as soon as it's approved.</div>`; }
+  else if(paid==="claimed"){ toast("Thank you! Your listing is now Featured. It may take a minute to show."); }
   else if(paid==="cancelled"){ toast("Checkout cancelled. You can finish it any time."); }
 }
 

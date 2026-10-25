@@ -19,6 +19,8 @@ Plan on about 1–2 hours for the whole setup. Do the steps in order.
 | `api/` | Server functions (database, payments, photo checks) |
 | `lib/` | Shared server code. `lib/finds.js` is the Family Hunt photo list |
 | `supabase/schema.sql` | Creates the database tables |
+| `supabase/update-2.sql` | Only if you ran schema.sql before Oct 24: adds the hayride/train type and business claims |
+| `supabase/nc-displays-2026.csv` | 39 public NC light shows to import (Step 7) |
 | `vercel.json`, `package.json` | Vercel settings. No packages to install |
 
 ---
@@ -97,10 +99,31 @@ Each photo check uses Claude's smallest, fastest model and costs a fraction of a
 
 ## Step 7 — Add your first displays
 
+**Load the 39 researched NC light shows (about 2 minutes):**
+1. If you ran `schema.sql` before October 24, first run `supabase/update-2.sql` in the Supabase SQL Editor. If you're running schema.sql for the first time, skip this.
+2. Go to **letsglowwww.com/admin**, sign in, and open **Import CSV**.
+3. Choose `supabase/nc-displays-2026.csv` from the unzipped folder and click **Import**.
+4. Spot-check a few on the map. In **All displays**, click **Edit** on any listing to fix it.
+
+The file only includes businesses, parks, towns and public events. Private homes aren't included. Homeowners can add themselves (and buy the Spotlight boost). Where a 2026 date or price wasn't published yet, the listing says "(2025 price)" or "Check the website for 2026 dates." Update those as businesses announce them. The `source` column shows where each fact came from.
+
+**Adding more by hand:**
 1. Go to **letsglowwww.com/admin** and sign in with your `ADMIN_KEY`.
 2. Use **Add a display** to put real displays on the map before you announce the app. Leave latitude and longitude empty and the address is looked up automatically. Displays you add here go live right away.
 3. Submissions from the public show up under **Waiting for review**. Approve, edit or reject them there.
 4. **All displays** lets you feature a business, give a home the Spotlight, or mark "Lights off" if a display goes dark.
+
+## Turning business listings into paying customers
+
+Every business, park and event listing (not homes) shows a **"Feature this listing"** link. When the owner clicks it, they enter their name and email, confirm they manage it, and pay $49 through Stripe. The listing turns Featured automatically: gold pin, top of results and a Family Hunt bonus.
+
+**Reaching out:**
+1. In admin, open **All displays**. Each unfeatured business has an **Outreach email** button.
+2. It opens a ready-to-send email with two links: their free listing, and a one-click upgrade link (`letsglowwww.com/?claim=ID`) that opens the Feature checkout directly.
+3. Copy it into your email app and send it to the address on the business's website.
+4. Claimed listings show a **Claimed** badge with the person's name and email.
+
+Tips: send the first round in early November, before most shows open. Lead with businesses that sell tickets (farms, gardens, drive-thrus), since they get the most value. A follow-up a week after opening night, with how many people viewed their listing, works well.
 
 ## Step 8 — Final checks before launch
 

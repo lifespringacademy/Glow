@@ -24,7 +24,7 @@ export default async function stripeWebhook(req, res) {
       if (kind === 'hunt' && /^[0-9a-f-]{36}$/i.test(id || '')) {
         await db(`teams?id=eq.${id}`, { method: 'PATCH', body: { paid: true } });
       } else if ((kind === 'spot' || kind === 'featured') && /^\d+$/.test(id || '')) {
-        const patch = kind === 'spot' ? { paid: true, spotlight: true } : { paid: true, featured: true };
+        const patch = kind === 'spot' ? { paid: true, spotlight: true } : { paid: true, featured: true, plan: 'featured' };
         await db(`displays?id=eq.${id}`, { method: 'PATCH', body: patch });
       }
     }

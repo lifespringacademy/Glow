@@ -3,6 +3,7 @@
 // POST /api/admin { action: 'approve'|'reject'|'delete', id }
 //                 { action: 'update', id, fields: {...} }
 //                 { action: 'create', fields: {...} }   (added by you, approved right away)
+//                 { action: 'import', rows: [{...}, ...] } (up to 15 rows per call, approved right away)
 import crypto from 'node:crypto';
 import { db, handler, body, clean, int, geocodeNC, HttpError, TYPES, AMENITIES } from '../lib/util.js';
 
@@ -86,6 +87,32 @@ export default handler(async (req) => {
     row.price = row.price || (row.cost === 'paid' ? '' : 'Free');
     const [created] = await db('displays', { method: 'POST', body: row, prefer: 'return=representation' });
     return { ok: true, id: created.id };
+  }
+  if (b.action === 'import') {
+    const rows = Array.isArray(b.rows) ? b.rows.slice(0, 15) : [];
+    const results = [];
+    for (const raw of rows) {
+      const label = clean(raw?.name, 80) || '(no name)';
+      try {
+        const row = pick({ ...raw, tags: typeof raw.tags === 'string' ? raw.tags.split(/[;|]/).map((t) => t.trim()).filter(Boolean) : raw.tags,
+          lat: raw.lat === '' ? undefined : raw.lat, lon: raw.lon === '' ? undefined : raw.lon });
+        if (!row.name || !row.type || !row.city) throw new Error('Name, type and city are required.');
+        const sameCity = await db(`displays?city=ilike.${encodeURIComponent(row.city.replace(/[*%]/g, ''))}&status=neq.rejected&select=name`);
+        if (sameCity.some((x) => x.name.trim().toLowerCase() === row.name.trim().toLowerCase())) { results.push({ name: label, ok: false, skipped: true, error: 'Already on the map' }); continue; }
+        if (!(Number.isFinite(row.lat) && Number.isFinite(row.lon))) {
+          if (!row.street) throw new Error('Needs a street address or latitude/longitude.');
+          const geo = await geocodeNC(row.street, row.city, row.zip);
+          Object.assign(row, { lat: geo.lat, lon: geo.lon, zip: row.zip || geo.zip });
+        }
+        row.status = 'approved';
+        row.price = row.price || (row.cost === 'paid' ? 'See website' : 'Free');
+        const [created] = await db('displays', { method: 'POST', body: row, prefer: 'return=representation' });
+        results.push({ name: label, ok: true, id: created.id });
+      } catch (e) {
+        results.push({ name: label, ok: false, error: e.message || 'Failed' });
+      }
+    }
+    return { results };
   }
   throw new HttpError(400, 'Unknown action');
 });

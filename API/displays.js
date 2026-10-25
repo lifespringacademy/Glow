@@ -1,5 +1,6 @@
 // GET  /api/displays        -> every approved display, with ratings and the latest wait time
 // POST /api/displays        -> someone submits a display for review (and pays, for Spotlight/Featured)
+// POST /api/displays { action: 'claim', id, name, email } -> a business claims its listing and pays to be Featured
 import { db, handler, body, clean, int, geocodeNC, siteUrl, HttpError, TYPES, AMENITIES } from '../lib/util.js';
 import { createCheckout, stripeReady } from '../lib/stripe.js';
 
@@ -12,6 +13,25 @@ export default handler(async (req, res) => {
   if (req.method !== 'POST') throw new HttpError(405, 'Method not allowed');
 
   const b = body(req);
+
+  if (b.action === 'claim') {
+    const id = int(b.id);
+    const who = clean(b.name, 80);
+    const email = clean(b.email, 120);
+    if (!who) throw new HttpError(400, 'Add your name.');
+    if (!/^\S+@\S+\.\S+$/.test(email || '')) throw new HttpError(400, 'Enter your email so we can reach you about the listing.');
+    if (!b.authorized) throw new HttpError(400, 'Please confirm you manage this business or event.');
+    const [d] = await db(`displays?id=eq.${id}&status=eq.approved&select=id,type,featured,paid,plan`);
+    if (!d) throw new HttpError(404, 'That listing is no longer on the map.');
+    if (d.featured && (d.paid || d.plan !== 'featured')) throw new HttpError(409, 'This listing is already Featured.');
+    if (!stripeReady()) throw new HttpError(503, 'Payments are not set up yet. Email us and we will feature you.');
+    await db(`displays?id=eq.${id}`, { method: 'PATCH', body: { claim_name: who, claim_email: email, claimed_at: new Date().toISOString() } });
+    const base = siteUrl(req);
+    const c = await createCheckout({ kind: 'featured', id, email, successUrl: `${base}/?paid=claimed#find`, cancelUrl: `${base}/?paid=cancelled#find` });
+    await db(`displays?id=eq.${id}`, { method: 'PATCH', body: { stripe_session: c.session } });
+    return { checkoutUrl: c.url };
+  }
+
   const name = clean(b.name, 80);
   const type = TYPES.includes(b.type) ? b.type : null;
   const street = clean(b.street, 120);

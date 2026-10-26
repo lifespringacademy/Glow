@@ -64,6 +64,7 @@ th{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.06em
       <button type="button" data-t="all" aria-pressed="false">All displays</button>
       <button type="button" data-t="add" aria-pressed="false">Add a display</button>
       <button type="button" data-t="import" aria-pressed="false">Import CSV</button>
+      <button type="button" data-t="messages" aria-pressed="false">Messages <span id="msgCount"></span></button>
       <button type="button" data-t="teams" aria-pressed="false">Hunt teams</button>
       <button type="button" id="signout">Sign out</button>
     </div>
@@ -99,6 +100,7 @@ async function load(){
   const v=$("#view"); v.innerHTML=`<div class="note">Loading…</div>`;
   try{
     if(tab==="teams"){ const r=await api("/api/admin?view=teams"); return renderTeams(r.teams); }
+    if(tab==="messages"){ const r=await api("/api/admin?view=messages"); return renderMessages(r.messages); }
     if(tab==="add"){ return renderForm(null); }
     if(tab==="import"){ return renderImport(); }
     const r=await api("/api/admin?view="+(tab==="pending"?"pending":"all")); rows=r.displays;
@@ -113,7 +115,8 @@ function renderPending(){
     <div class="meta">${badges(d)}<span>${esc(TYPES[d.type]||d.type)}</span><span>${esc(PLANS[d.plan]||d.plan)}${(d.plan==="spot"||d.plan==="featured")&&!d.paid?" · not paid yet":""}</span></div>
     <b style="font-size:17px">${esc(d.name)}</b>
     <div class="meta"><span>${esc(d.street||"")}, ${esc(d.city)} ${esc(d.zip||"")}</span><a href="https://www.google.com/maps?q=${d.lat},${d.lon}" target="_blank" rel="noopener">Check on map</a><span>${esc(d.submitter_email||"")}</span></div>
-    <div class="meta"><span>${esc(d.price||"")}</span><span>${esc(d.hours||"")}</span><span>${esc(d.start_date||"")} → ${esc(d.end_date||"")}</span>${d.fm?`<span>FM ${esc(d.fm)}</span>`:""}${d.url?`<a href="${esc(d.url)}" target="_blank" rel="noopener">Website</a>`:""}</div>
+    <div class="meta"><span>${esc(d.price||"")}</span><span>${esc(d.hours||"")}</span>${d.start_date||d.end_date?`<span>${esc(d.start_date||"?")} → ${esc(d.end_date||"?")}</span>`:""}${d.fm?`<span>FM ${esc(d.fm)}</span>`:""}${d.url?`<a href="${esc(d.url)}" target="_blank" rel="noopener">Website</a>`:""}</div>
+    ${["home","hood"].includes(d.type)||(["home","spot"].includes(d.plan)&&!["drive","walk","town","ride"].includes(d.type))?`<div class="meta">${d.verified?`<span class="badge b-ok">Verified at location${d.verify_miles!=null?` · ${d.verify_miles} mi`:""}</span>`:`<span class="badge b-pend">Not verified${d.verify_miles!=null?` · ${d.verify_miles} mi from address`:" · no location"}</span>`}${d.owner_confirmed?`<span class="badge b-ok">Owner confirmed</span>`:`<span class="badge b-no">No owner confirmation</span>`}<a href="https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${d.lat},${d.lon}" target="_blank" rel="noopener">Street View</a></div>${d.photo_check?`<div class="note">Photo check: ${esc(d.photo_check)}</div>`:""}`:""}
     ${d.description?`<div style="color:var(--frost)">${esc(d.description)}</div>`:""}
     <div class="actions"><button class="btn primary" data-approve="${d.id}">Approve</button><button class="btn" data-edit="${d.id}">Edit first</button><button class="btn danger" data-reject="${d.id}">Reject</button></div>
   </div>`).join("");
@@ -271,6 +274,16 @@ function renderImport(){
         ${bad?`<div class="tablebox"><table><thead><tr><th>Display</th><th>Problem</th></tr></thead><tbody>${all.filter(r=>!r.ok&&!r.skipped).map(r=>`<tr><td>${esc(r.name)}</td><td class="err">${esc(r.error)}</td></tr>`).join("")}</tbody></table></div><p class="note">Fix these in the file and import it again. Rows that worked will be skipped.</p>`:""}`;
     };
   };
+}
+function renderMessages(list){
+  const open=list.filter(m=>!m.handled).length; $("#msgCount").textContent=open?`(${open})`:"";
+  $("#view").innerHTML = list.length ? list.map(m=>`<div class="card" style="${m.handled?"opacity:.6":""}">
+    <div class="meta"><span class="badge ${m.handled?"b-ok":"b-pend"}">${m.handled?"Handled":"New"}</span><span>${esc(m.topic)}</span><span>${new Date(m.created_at).toLocaleString()}</span>${m.emailed?"":`<span class="badge b-no" title="Check RESEND_API_KEY and CONTACT_TO in Vercel">Not emailed</span>`}</div>
+    <b>${esc(m.name)}</b><div class="meta"><span style="user-select:all">${esc(m.email)}</span>${m.displays?`<span>About: <b>${esc(m.displays.name)}</b> (${esc(m.displays.city)})</span>`:""}</div>
+    <div style="white-space:pre-wrap;color:var(--frost)">${esc(m.message)}</div>
+    <div class="actions"><button class="btn" data-handled="${m.id}" data-v="${m.handled?0:1}">${m.handled?"Mark as new":"Mark handled"}</button></div></div>`).join("")
+    : `<div class="card"><b>No messages yet.</b><div class="note">Messages from the Contact form show up here and are emailed to you.</div></div>`;
+  document.querySelectorAll("[data-handled]").forEach(b=>b.onclick=()=>act({action:"handled",id:+b.dataset.handled,value:b.dataset.v==="1"},"Saved"));
 }
 function renderTeams(teams){
   $("#view").innerHTML=`<div class="meta"><span>${teams.filter(t=>t.paid).length} paid teams · ${teams.length} total</span></div><div class="tablebox" style="margin-top:12px"><table><thead><tr><th>#</th><th>Team</th><th>County</th><th>Points</th><th>Hunt Pass</th></tr></thead><tbody>

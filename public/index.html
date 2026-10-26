@@ -328,6 +328,13 @@ footer a{color:var(--frost)}
       <div class="field"><span class="label">Extras</span><div class="row" id="fTags"></div></div>
       <div class="field"><label class="label" for="fUrl">Website or tickets link (optional)</label><input type="text" id="fUrl" maxlength="300" placeholder="https://"></div>
       <div class="field"><label class="label" for="fPlan">Listing</label><select id="fPlan"><option value="home">Home or neighborhood (free)</option><option value="spot">Home or neighborhood + Spotlight boost</option><option value="basic">Business basic (free)</option><option value="featured">Featured business</option></select></div>
+      <div class="box" id="homeVerify">
+        <h4>For home and neighborhood displays</h4>
+        <div class="note">To protect families' privacy, homes are only listed by the homeowner or with their permission.</div>
+        <div class="row"><button type="button" class="btn" id="fVerify">📍 Verify I'm at this address</button><span class="note" id="fVerifyNote">Optional, but verified listings are approved faster.</span></div>
+        <div class="field"><label class="label" for="fPhoto">Photo of your display at night (optional)</label><input type="file" id="fPhoto" accept="image/*"></div>
+        <label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;color:var(--frost)"><input type="checkbox" id="fOwner" style="margin-top:3px"> This is my home, or I have the homeowner's permission to list it.</label>
+      </div>
       <div class="field"><label class="label" for="fEmail">Your email (for the approval notice, never shown)</label><input type="email" id="fEmail" maxlength="120" autocomplete="email" placeholder="you@example.com"></div>
       <div id="formMsg"></div>
       <div class="actions"><button class="btn primary" type="submit" id="addSubmit">Submit for review</button></div>
@@ -336,15 +343,14 @@ footer a{color:var(--frost)}
 
   <footer>
     <span>© <span id="yr"></span> Glow · letsglowwww.com · North Carolina</span>
-    <span><a href="/privacy">Privacy &amp; terms</a> · <a id="contactLink" href="#">Contact</a></span>
+    <span><a href="/privacy">Privacy &amp; terms</a> · <a href="#contact">Contact us</a></span>
   </footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
 // ===== Settings you may want to change =====
-const CONTACT_EMAIL = "hello@letsglowwww.com";   // shown in the footer
-const PRIZE_TEXT = "Top family in each county wins 4 tickets to a Featured display near them. The statewide champion, announced Dec 26, wins a holiday basket from Glow sponsors.";
+const PRIZE_TEXT = "Leaders will be announced on Glow's social media throughout the season. The grand prize winner will receive a family fun gift basket!";
 // Map tiles: OpenStreetMap (free for light use). If traffic grows, switch to a paid tile plan here.
 const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const TILE_ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -576,6 +582,7 @@ function openSheet(id){
     <div class="actions"><button type="button" class="btn ${inT?"in":"primary"}" id="shTour">${inT?"✓ In your tour":"+ Add to tour"}</button>
       <a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}&travelmode=driving" target="_blank" rel="noopener">Directions</a>
       <button type="button" class="btn" id="shShare">Share</button>${d.url?`<a class="btn" href="${esc(d.url)}" target="_blank" rel="noopener">${d.cost==="paid"?"Buy tickets":"Website"}</a>`:""}</div>
+    <div class="note"><button type="button" class="linkbtn" id="shReport">Report this listing</button> · Wrong info, or your home listed without permission?</div>
   </div>`;
   document.body.appendChild(bd);
   const close=()=>{bd.remove(); document.removeEventListener("keydown",onKey);}; const onKey=e=>{if(e.key==="Escape")close();};
@@ -602,6 +609,7 @@ function openSheet(id){
       toast(`Checked in! +${r.points} points`); btn.textContent="✓ Checked in"; btn.classList.add("in"); loadHunt();
     }catch(err){ toast(err.message); btn.disabled=false; btn.textContent="Check in here"; }
   };
+  bd.querySelector("#shReport").onclick=()=>{ close(); openContact("Report a listing", d); };
   bd.querySelector("#shShare").onclick=()=>share(d.name, `${d.name} in ${d.city}, NC${d.hours?`: ${d.hours}`:""}. Found on Glow: https://letsglowwww.com\nDirections: https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}`);
 }
 
@@ -624,7 +632,7 @@ function openClaim(id){
       <div class="field"><label class="label" for="clEmail">Your email</label><input type="email" id="clEmail" maxlength="120" autocomplete="email"></div>
     </div>
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;color:var(--frost)"><input type="checkbox" id="clAuth" style="margin-top:3px"> I own or manage this business or event.</label>
-    <div class="note">Need to fix hours, prices or your website link? Mention it to ${esc(CONTACT_EMAIL)} and we'll update your listing.</div>
+    <div class="note">Need to fix hours, prices or your website link? <a href="#contact" data-close>Contact us</a> and we'll update your listing.</div>
     <div id="clMsg"></div>
     <div class="actions"><button class="btn primary" type="submit" id="clGo">Continue to secure checkout</button></div>
   </form>`;
@@ -647,6 +655,40 @@ function deepLink(){
   history.replaceState(null,"",location.pathname+location.hash);
   if(c && D.some(d=>d.id===c)) openClaim(c); else if(l && D.some(d=>d.id===l)) openSheet(l);
 }
+
+// ---------- contact form ----------
+function openContact(topic, about){
+  if(document.getElementById("ctForm")) return;
+  const topics=["General question","Report a listing","Fix a listing","Remove my display","Family Hunt help","Featured listing or business question","Payment question"];
+  const bd=document.createElement("div"); bd.className="backdrop";
+  bd.innerHTML=`<form class="sheet" id="ctForm" role="dialog" aria-modal="true" aria-labelledby="ct-t" novalidate>
+    <div class="sheethead"><h2 id="ct-t">Contact Glow</h2><button type="button" class="x" aria-label="Close">×</button></div>
+    <p style="margin:0;color:var(--frost)">Questions, corrections or ideas? Send us a note and we'll reply by email.</p>
+    <div class="grid2">
+      <div class="field"><label class="label" for="ctN">Your name</label><input type="text" id="ctN" maxlength="80" autocomplete="name"></div>
+      <div class="field"><label class="label" for="ctE">Your email</label><input type="email" id="ctE" maxlength="120" autocomplete="email"></div>
+    </div>
+    ${about?`<div class="box"><span class="note">About this listing</span><b>${esc(about.name)} · ${esc(about.city)}</b></div>`:""}
+    <div class="field"><label class="label" for="ctT">Topic</label><select id="ctT">${topics.map(t=>`<option ${t===topic?"selected":""}>${t}</option>`).join("")}</select></div>
+    <div class="field"><label class="label" for="ctM">Message</label><textarea id="ctM" maxlength="3000" style="min-height:120px"></textarea></div>
+    <div style="position:absolute;left:-9999px" aria-hidden="true"><label for="ctW">Website</label><input type="text" id="ctW" tabindex="-1" autocomplete="off"></div>
+    <div id="ctMsg"></div>
+    <div class="actions"><button class="btn primary" type="submit" id="ctGo">Send message</button></div>
+  </form>`;
+  document.body.appendChild(bd);
+  const close=()=>bd.remove();
+  bd.querySelector(".x").onclick=close; bd.addEventListener("click",e=>{ if(e.target===bd) close(); });
+  bd.querySelector("form").onsubmit=async e=>{
+    e.preventDefault(); const btn=$("#ctGo"), msg=$("#ctMsg"); btn.disabled=true; btn.textContent="Sending…";
+    try{ await api("/api/contact",{method:"POST",body:{name:$("#ctN").value,email:$("#ctE").value,topic:$("#ctT").value,message:$("#ctM").value,website:$("#ctW").value,display_id:about?about.id:null}});
+      bd.querySelector("form").innerHTML=`<div class="sheethead"><h2>Thanks!</h2><button type="button" class="x" aria-label="Close">×</button></div><p style="margin:0;color:var(--frost)">Your message is on its way. We'll reply to the email you gave us.</p><div class="actions"><button type="button" class="btn primary" id="ctDone">Close</button></div>`;
+      bd.querySelector(".x").onclick=close; $("#ctDone").onclick=close; return; }
+    catch(err){ msg.innerHTML=`<div class="err">${esc(err.message)}</div>`; }
+    btn.disabled=false; btn.textContent="Send message";
+  };
+  $("#ctN").focus();
+}
+document.addEventListener("click",e=>{ const a=e.target.closest("a[data-close]"); if(a) document.querySelectorAll(".backdrop").forEach(x=>x.remove()); });
 
 // ---------- Family Hunt ----------
 const H = { teamId: store.get("glow-team", null), data:null, scope:"county", photos:{}, pending:{}, loading:false, error:"" };
@@ -672,7 +714,7 @@ function renderHunt(){
       <div class="joincard">
         <h2 class="sec" style="margin:0">The Glow Family Hunt</h2>
         <p style="margin:0;color:var(--frost);max-width:60ch">Families compete all season. Check in at light displays and snap photos of the finds on your list. AI checks each photo in seconds, and points go straight onto your county leaderboard.</p>
-        <div class="meta"><span class="badge b-feat">Hunt Pass $4.99 per family · whole season</span><span>Prizes from Featured businesses</span></div>
+        <div class="meta"><span class="badge b-feat">Hunt Pass $4.99 per family · whole season</span><span>Grand prize: a family fun gift basket</span></div>
         <form id="createTeam" class="grid2" novalidate>
           <div class="field"><label class="label" for="ctName">Team name</label><input type="text" id="ctName" maxlength="30" placeholder="The Holly Jolly Crew"></div>
           <div class="field"><label class="label" for="ctCounty">Home county</label><select id="ctCounty"><option value="">Choose…</option>${counties.map(c=>`<option>${c}</option>`).join("")}</select></div>
@@ -749,7 +791,7 @@ function boardHtml(data){
     ${list.length? list.map((x,i)=>`<div class="brow ${x.me?"me":""} ${i<3?"top3":""}"><span class="rank">${i+1}</span><span style="min-width:0"><b>${esc(x.name)}${x.me?" (you)":""}</b><small>${esc(x.county)} County</small></span><b>${x.points}</b></div>`).join("") : `<div class="brow"><span></span><span class="note">No teams yet. Be the first!</span><span></span></div>`}
     <div class="note" style="padding:8px 14px 12px">Only team names are shown, never real names or photos.</div></div>`;
 }
-function prizeHtml(){ return `<div class="box" style="background:var(--panel)"><h4>Prizes</h4><div style="font-size:14px;color:var(--frost)">${esc(PRIZE_TEXT)}</div></div>`; }
+function prizeHtml(){ return `<div class="box" style="background:var(--panel)"><h4>Leaders &amp; grand prize</h4><div style="font-size:14px;color:var(--frost)">${esc(PRIZE_TEXT)}</div></div>`; }
 function bindBoard(){ const seg=$("#scopeSeg"); if(seg) seg.onclick=e=>{ const b=e.target.closest("button"); if(!b) return; H.scope=b.dataset.v; renderHunt(); }; }
 
 $("#huntBody").addEventListener("click", e=>{ const b=e.target.closest("[data-snap]"); if(!b||b.disabled) return; currentFind=b.dataset.snap; const inp=$("#photoInput"); inp.value=""; inp.click(); });
@@ -774,7 +816,15 @@ async function shrink(file){
 }
 
 // ---------- add a display ----------
+let verifyPos=null;
+function isHomeListing(){ return ["home","hood"].includes($("#fType").value) || ["home","spot"].includes($("#fPlan").value) && !["drive","walk","town","ride"].includes($("#fType").value); }
+function toggleHomeVerify(){ $("#homeVerify").hidden = !isHomeListing(); }
+async function photoData(){ const f=$("#fPhoto").files && $("#fPhoto").files[0]; if(!f) return null; try{ return await shrink(f); }catch(e){ return null; } }
 function buildAdd(){
+  $("#fType").addEventListener("change",toggleHomeVerify); $("#fPlan").addEventListener("change",toggleHomeVerify);
+  $("#fVerify").onclick=async()=>{ const n=$("#fVerifyNote"), b=$("#fVerify"); n.textContent="Getting your location…";
+    try{ const p=await getLocation(); verifyPos=[p.coords.latitude,p.coords.longitude]; b.classList.add("in"); n.textContent="✓ Location captured. We'll compare it to the address when you submit."; }
+    catch(e){ verifyPos=null; n.textContent=e.message+" You can still submit without it."; } };
   $("#fType").innerHTML=Object.entries(TYPES).map(([k,v])=>`<option value="${k}">${v.label}</option>`).join("");
   $("#fTags").innerHTML=AMEN.map(a=>`<button type="button" class="chip" data-tag="${esc(a)}" aria-pressed="false">${esc(a)}</button>`).join("");
   $("#fTags").onclick=e=>{ const b=e.target.closest("[data-tag]"); if(b) b.setAttribute("aria-pressed", b.getAttribute("aria-pressed")!=="true"); };
@@ -786,12 +836,16 @@ function buildAdd(){
     if(!/^(27|28)\d{3}$/.test(v("#fZip"))) errs.push("Enter a North Carolina ZIP code (starts with 27 or 28).");
     if($("#fCost").value==="paid" && !v("#fPrice")) errs.push("Add the price for a paid display.");
     if(!/^\S+@\S+\.\S+$/.test(v("#fEmail"))) errs.push("Enter an email so we can tell you when it's approved.");
+    if(isHomeListing() && !$("#fOwner").checked) errs.push("Please confirm this is your home or you have the homeowner's permission.");
     if(errs.length){ msg.innerHTML=errs.map(x=>`<div class="err">${esc(x)}</div>`).join(""); return; }
     btn.disabled=true; btn.textContent="Submitting…"; msg.innerHTML="";
     try{
-      const r=await api("/api/displays",{method:"POST",body:{name:v("#fName"),type:$("#fType").value,street:v("#fStreet"),city:v("#fCity"),zip:v("#fZip"),cost:$("#fCost").value,price:v("#fPrice"),hours:v("#fHours"),fm:v("#fFm"),start_date:$("#fStart").value,end_date:$("#fEnd").value,description:v("#fDesc"),url:v("#fUrl"),plan:$("#fPlan").value,email:v("#fEmail"),tags:[...document.querySelectorAll("#fTags [aria-pressed=true]")].map(b=>b.dataset.tag)}});
+      const r=await api("/api/displays",{method:"POST",body:{name:v("#fName"),type:$("#fType").value,street:v("#fStreet"),city:v("#fCity"),zip:v("#fZip"),cost:$("#fCost").value,price:v("#fPrice"),hours:v("#fHours"),fm:v("#fFm"),start_date:$("#fStart").value,end_date:$("#fEnd").value,description:v("#fDesc"),url:v("#fUrl"),plan:$("#fPlan").value,email:v("#fEmail"),tags:[...document.querySelectorAll("#fTags [aria-pressed=true]")].map(b=>b.dataset.tag),
+        owner_confirmed:isHomeListing()&&$("#fOwner").checked, verify_lat:isHomeListing()&&verifyPos?verifyPos[0]:null, verify_lon:isHomeListing()&&verifyPos?verifyPos[1]:null, photo:isHomeListing()?await photoData():null}});
       if(r.checkoutUrl){ msg.innerHTML=`<div class="note">Taking you to checkout…</div>`; location.href=r.checkoutUrl; return; }
-      msg.innerHTML=`<div class="ok"><b>${esc(v("#fName"))}</b> is submitted. We'll review it and email you when it's on the map.</div>`;
+      const vtxt = !isHomeListing() ? "" : r.verified ? " ✓ Verified at the address." : r.verifyMiles!=null ? ` Your location was about ${r.verifyMiles} miles from the address, so we'll double-check it by hand.` : "";
+      msg.innerHTML=`<div class="ok"><b>${esc(v("#fName"))}</b> is submitted.${vtxt} We'll review it and email you when it's on the map.</div>`;
+      verifyPos=null; $("#fVerifyNote").textContent="Optional, but verified listings are approved faster."; $("#fVerify").classList.remove("in");
       e.target.reset(); document.querySelectorAll("#fTags .chip").forEach(b=>b.setAttribute("aria-pressed","false"));
     }catch(err){ msg.innerHTML=`<div class="err">${esc(err.message)}</div>`; }
     btn.disabled=false; btn.textContent="Submit for review";
@@ -822,7 +876,7 @@ function buildControls(){
   $("#amenChips").addEventListener("click",e=>{const b=e.target.closest("[data-amen]");if(!b)return;const a=b.dataset.amen;S.amen.has(a)?S.amen.delete(a):S.amen.add(a);b.setAttribute("aria-pressed",S.amen.has(a));renderAll();});
   $("#tourStart").addEventListener("change",async e=>{ if(e.target.value==="me" && !(await locate())){ e.target.value=S.tourStart; return; } S.tourStart=e.target.value; renderAll(); });
   $("#cards").addEventListener("click",e=>{const cl=e.target.closest("[data-claim]"); if(cl) return openClaim(+cl.dataset.claim); const o=e.target.closest("[data-open]"); if(o) return openSheet(+o.dataset.open); const t=e.target.closest("[data-tour]"); if(t) toggleTour(+t.dataset.tour);});
-  $("#yr").textContent=y; const cl=$("#contactLink"); cl.href="mailto:"+CONTACT_EMAIL; cl.textContent=CONTACT_EMAIL;
+  $("#yr").textContent=y;
 }
 async function locate(){
   $("#locNote").textContent="Finding you…";
@@ -832,7 +886,8 @@ async function locate(){
 
 // ---------- tabs / routing ----------
 function route(){
-  const h=(location.hash||"#find").slice(1);
+  let h=(location.hash||"#find").slice(1);
+  if(h==="contact"){ document.querySelectorAll(".backdrop").forEach(x=>x.remove()); openContact(); history.replaceState(null,"","#"+(S.tab||"find")); h=S.tab||"find"; }
   S.tab=["find","tour","hunt","add"].includes(h)?h:"find";
   ["find","tour","hunt","add"].forEach(t=>{ const a=$("#tab-"+t); if(S.tab===t) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
   $("#view-map").hidden = !(S.tab==="find"||S.tab==="tour");
@@ -874,7 +929,7 @@ function setupInstall(){
 }
 
 // ---------- start ----------
-initMap(); buildControls(); buildAdd(); handleReturn(); setupInstall();
+initMap(); buildControls(); buildAdd(); toggleHomeVerify(); handleReturn(); setupInstall();
 window.addEventListener("hashchange", route);
 route(); loadDisplays();
 setInterval(()=>{ if(document.visibilityState==="visible") loadDisplays(); }, 120000);

@@ -1,7 +1,8 @@
 // GET  /api/displays        -> every approved display, with ratings and the latest wait time
 // POST /api/displays        -> someone submits a display for review (and pays, for Spotlight/Featured)
 // POST /api/displays { action: 'claim', id, name, email } -> a business claims its listing and pays to be Featured
-import { db, handler, body, clean, int, geocodeNC, siteUrl, HttpError, TYPES, AMENITIES } from '../lib/util.js';
+import { db, handler, body, clean, int, miles, geocodeNC, siteUrl, HttpError, TYPES, AMENITIES } from '../lib/util.js';
+import { askAboutPhoto } from '../lib/ai.js';
 import { createCheckout, stripeReady } from '../lib/stripe.js';
 
 export default handler(async (req, res) => {
@@ -47,9 +48,26 @@ export default handler(async (req, res) => {
   if (!/^(27|28)\d{3}$/.test(zip || '')) errs.push('Enter a North Carolina ZIP code (starts with 27 or 28).');
   if (cost === 'paid' && !clean(b.price)) errs.push('Add the price for a paid display.');
   if (!/^\S+@\S+\.\S+$/.test(email || '')) errs.push("Enter an email so we can tell you when it's approved.");
+  const isHome = type === 'home' || type === 'hood' || ((plan === 'home' || plan === 'spot') && !['drive', 'walk', 'town', 'ride'].includes(type));
+  if (isHome && !b.owner_confirmed) errs.push("Please confirm this is your home or you have the homeowner's permission.");
   if (errs.length) throw new HttpError(400, errs.join(' '));
 
   const geo = await geocodeNC(street, city, zip);
+
+  // Was the person standing at the address when they submitted? (home listings)
+  let verified = false, verifyMiles = null;
+  const vLat = b.verify_lat === null || b.verify_lat === undefined || b.verify_lat === '' ? NaN : Number(b.verify_lat);
+  const vLon = b.verify_lon === null || b.verify_lon === undefined || b.verify_lon === '' ? NaN : Number(b.verify_lon);
+  if (Number.isFinite(vLat) && Number.isFinite(vLon)) {
+    verifyMiles = Math.round(miles([vLat, vLon], [geo.lat, geo.lon]) * 100) / 100;
+    verified = verifyMiles <= (Number(process.env.VERIFY_MILES) || 0.2);
+  }
+  // Optional photo of the display: AI checks it looks like a real lit-up home (the photo isn't stored)
+  let photoCheck = null;
+  if (isHome && b.photo) {
+    const v = await askAboutPhoto(b.photo, 'This photo was submitted with a request to list a home Christmas light display on a public map. Is it a real camera photo (not a screenshot, stock or AI image) of a house, yard or street decorated with holiday lights or decorations? Reply with only JSON like {"looks_real":true,"reason":"one short sentence"}.');
+    photoCheck = v ? `${v.looks_real ? 'Looks real' : 'Doubtful'}: ${String(v.reason || '').slice(0, 160)}` : 'Photo could not be checked';
+  }
   const dateOk = (s) => (/^\d{4}-\d{2}-\d{2}$/.test(s || '') ? s : null);
   const row = {
     name, type, street, city: geo.city || city, zip: geo.zip || zip, lat: geo.lat, lon: geo.lon,
@@ -58,7 +76,8 @@ export default handler(async (req, res) => {
     fm: clean(b.fm, 10), url: /^https?:\/\//i.test(b.url || '') ? clean(b.url, 300) : null,
     description: clean(b.description, 400),
     tags: Array.isArray(b.tags) ? b.tags.filter((t) => AMENITIES.includes(t)) : [],
-    plan, submitter_email: email, status: 'pending'
+    plan, submitter_email: email, status: 'pending',
+    verified, verify_miles: verifyMiles, owner_confirmed: !!b.owner_confirmed, photo_check: photoCheck
   };
   const [created] = await db('displays', { method: 'POST', body: row, prefer: 'return=representation' });
 
@@ -72,5 +91,5 @@ export default handler(async (req, res) => {
     checkoutUrl = c.url;
     await db(`displays?id=eq.${created.id}`, { method: 'PATCH', body: { stripe_session: c.session } });
   }
-  return { ok: true, id: created.id, checkoutUrl };
+  return { ok: true, id: created.id, checkoutUrl, verified, verifyMiles };
 });

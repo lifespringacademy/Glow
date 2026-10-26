@@ -46,6 +46,9 @@ export default handler(async (req) => {
   checkKey(req);
   if (req.method === 'GET') {
     const view = req.query.view;
+    if (view === 'messages') {
+      return { messages: await db('contact_messages?select=id,name,email,topic,message,emailed,handled,created_at,display_id,displays(name,city)&order=created_at.desc&limit=500') };
+    }
     if (view === 'teams') {
       return { teams: await db('team_scores?select=id,name,county,paid,points&order=points.desc&limit=1000') };
     }
@@ -59,6 +62,10 @@ export default handler(async (req) => {
 
   if (b.action === 'approve' || b.action === 'reject') {
     await db(`displays?id=eq.${id}`, { method: 'PATCH', body: { status: b.action === 'approve' ? 'approved' : 'rejected' } });
+    return { ok: true };
+  }
+  if (b.action === 'handled') {
+    await db(`contact_messages?id=eq.${id}`, { method: 'PATCH', body: { handled: !!b.value } });
     return { ok: true };
   }
   if (b.action === 'delete') {

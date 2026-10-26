@@ -236,6 +236,18 @@ body.is-map footer{display:none}
 .iconbtn{width:46px;height:46px;flex:none;border-radius:14px;border:1px solid var(--line);background:var(--panel);display:grid;place-items:center;position:relative;color:var(--snow)}
 .iconbtn .dotbadge{position:absolute;top:8px;right:8px;width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber)}
 
+/* ---- install prompt: small card above the bottom bar ---- */
+.installpop{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:950;width:min(440px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;background:#16213A;border:1px solid #6E5A1C;border-radius:16px;padding:10px 10px 10px 12px;box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:14px;line-height:1.35}
+.installpop img{border-radius:10px;flex:none}
+.installpop span{flex:1;min-width:0}
+.installpop b{color:var(--warm)}
+.installpop .x{width:32px;height:32px;flex:none}
+@media (max-width:899px){.installpop{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+body.is-map .installpop, body.is-welcome .installpop{display:none!important}
+.installlink{display:flex;align-items:center;gap:12px;width:100%;text-align:left;color:var(--snow);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:10px}
+.installlink img{border-radius:9px;flex:none}
+.installlink span{display:grid;gap:2px}.installlink small{color:var(--frost);font-size:13px}
+
 /* ---- welcome ---- */
 .welcome{max-width:430px;margin:0 auto;padding:28px 0 12px;display:grid;gap:22px}
 .welcome .bulbrow{display:flex;justify-content:center;gap:22px}
@@ -329,9 +341,11 @@ body.is-map footer{display:none}
     </div>
   </header>
 
-  <div class="install" id="installBar" hidden>
+  <div class="installpop" id="installBar" role="dialog" aria-label="Install Glow" hidden>
+    <img src="/icons/icon-192.png" alt="" width="40" height="40">
     <span id="installText"></span>
-    <span class="row"><button class="btn primary" id="installBtn" hidden>Install Glow</button><button class="small" id="installDismiss">Not now</button></span>
+    <button class="btn primary" id="installBtn" hidden>Install</button>
+    <button type="button" class="x" id="installDismiss" aria-label="Not now">×</button>
   </div>
 
   <section id="view-welcome" hidden></section>
@@ -651,6 +665,7 @@ function renderExplore(){
   if(any) h+=`<p style="margin:0 0 18px"><button type="button" class="linkbtn" data-seeall="all">See every display ${areaNote()} →</button></p>`;
   else h+=`<div class="empty">No displays ${areaNote()} yet.<div class="actions" style="justify-content:center;margin-top:10px">${S.radius&&S.radius<100?`<button type="button" class="btn" data-widen>Search ${S.radius<50?50:100} miles</button>`:""}<button type="button" class="btn" data-allnc>Browse all of NC</button></div></div>`;
   h+=`<a class="listyours" href="#add"><b>Have a great display?</b><span>List your home, neighborhood or business on Glow →</span></a>`;
+  if(!isStandalone()) h+=`<button type="button" class="installlink" data-install><img src="/icons/icon-192.png" alt="" width="36" height="36"><span><b>Add Glow to your home screen</b><small>Open it like an app, with one tap</small></span></button>`;
   el.innerHTML=h;
 }
 
@@ -1148,6 +1163,7 @@ function buildControls(){
     const sa=t.closest("[data-seeall]"); if(sa){ S.listMode=sa.dataset.seeall; renderExplore(); window.scrollTo({top:0}); return; }
     if(t.closest("[data-back]")){ S.listMode=null; S.q=""; $("#q").value=""; S.openTonight=false; S.types=new Set(Object.keys(TYPES)); S.cost="all"; S.amen=new Set(); S.date=""; renderAll(); window.scrollTo({top:0}); return; }
     if(t.closest("[data-plan]")) return planNight();
+    if(t.closest("[data-install]")) return openInstallHelp();
     if(t.closest("[data-widen]")){ setRadius(S.radius<50?50:100); renderAll(); return; }
     if(t.closest("[data-allnc]")){ setPlace({kind:"all"}); renderAll(); return; }
   });
@@ -1223,15 +1239,32 @@ function handleReturn(){
 
 // ---------- install to home screen ----------
 let deferredPrompt=null;
+const isStandalone = ()=> matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+const isIOS = ()=> /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+// The pop-up only appears from the second visit on, waits 20 seconds, and stays away for 30 days once closed.
+// "Add Glow to your home screen" at the bottom of Explore is always there for anyone who wants it.
 function setupInstall(){
-  const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-  if(standalone || store.get("glow-install-dismissed",0) > Date.now()) return;
+  if(isStandalone()) return;
+  const visits=(store.get("glow-visits",0)||0)+1; store.set("glow-visits",visits);
   const bar=$("#installBar"), txt=$("#installText"), btn=$("#installBtn");
-  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
-  if(ios){ txt.innerHTML=`<b>Add Glow to your Home Screen:</b> tap the Share button <span aria-hidden="true">⬆︎</span>, then <b>Add to Home Screen</b>.`; bar.hidden=false; }
-  window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferredPrompt=e; txt.innerHTML=`<b>Install Glow</b> on your phone for one-tap access all season.`; btn.hidden=false; bar.hidden=false; });
+  const allowed = ()=> visits>=2 && store.get("glow-install-dismissed",0) < Date.now();
+  const show = ()=>{ if(!allowed()) return; setTimeout(()=>{ if(allowed()) bar.hidden=false; }, 20000); };
+  if(isIOS()){ txt.innerHTML=`<b>Add Glow to your Home Screen.</b> Tap Share <span aria-hidden="true">⬆︎</span>, then “Add to Home Screen.”`; show(); }
+  window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferredPrompt=e; txt.innerHTML=`<b>Get the Glow app</b> for one-tap access all season.`; btn.hidden=false; show(); renderExplore(); });
   btn.onclick=async()=>{ if(!deferredPrompt) return; deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt=null; bar.hidden=true; };
-  $("#installDismiss").onclick=()=>{ store.set("glow-install-dismissed", Date.now()+7*864e5); bar.hidden=true; };
+  $("#installDismiss").onclick=()=>{ store.set("glow-install-dismissed", Date.now()+30*864e5); bar.hidden=true; };
+}
+async function openInstallHelp(){
+  if(deferredPrompt){ deferredPrompt.prompt(); await deferredPrompt.userChoice; deferredPrompt=null; $("#installBar").hidden=true; return; }
+  const bd=document.createElement("div"); bd.className="backdrop";
+  bd.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ih-t">
+    <div class="sheethead"><h2 id="ih-t">Add Glow to your home screen</h2><button type="button" class="x" aria-label="Close">×</button></div>
+    <p style="margin:0;color:var(--frost)">Glow opens like an app, full screen, with one tap from your home screen.</p>
+    <div class="box"><h4>iPhone or iPad (Safari)</h4><div>1. Tap the Share button <span aria-hidden="true">⬆︎</span> at the bottom of the screen.<br>2. Scroll down and tap <b>Add to Home Screen</b>.<br>3. Tap <b>Add</b>.</div></div>
+    <div class="box"><h4>Android (Chrome)</h4><div>1. Tap the menu <b>⋮</b> at the top right.<br>2. Tap <b>Install app</b> or <b>Add to Home screen</b>.</div></div>
+  </div>`;
+  document.body.appendChild(bd);
+  const close=()=>bd.remove(); bd.querySelector(".x").onclick=close; bd.addEventListener("click",e=>{ if(e.target===bd) close(); });
 }
 
 // ---------- start ----------

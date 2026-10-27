@@ -1,7 +1,9 @@
 // POST /api/stripe-webhook  (Stripe calls this after a payment)
 // Marks Hunt Passes, Spotlight boosts and Featured listings as paid.
+// Works with both Stripe payload styles: "Snapshot" (the full session is included)
+// and "Thin" (only the session id is included, so we ask Stripe for the details).
 import { db } from '../lib/util.js';
-import { verifyStripe } from '../lib/stripe.js';
+import { verifyStripe, getCheckoutSession, markPaid } from '../lib/stripe.js';
 
 // Read the request stream directly. Don't touch req.body first: on Vercel that
 // parses (and uses up) the body, and the signature check needs the exact bytes.
@@ -18,21 +20,24 @@ export default async function stripeWebhook(req, res) {
     return res.status(400).send('Bad signature');
   }
   const event = JSON.parse(raw);
+  const type = String(event.type || '').replace(/^v1\./, '');
+  if (type !== 'checkout.session.completed') return res.status(200).send('ignored');
   try {
-    if (event.type === 'checkout.session.completed' && event.data?.object?.payment_status === 'paid') {
-      const { kind, id } = event.data.object.metadata || {};
-      if (kind === 'hunt' && /^[0-9a-f-]{36}$/i.test(id || '')) {
-        await db(`teams?id=eq.${id}`, { method: 'PATCH', body: { paid: true } });
-      } else if ((kind === 'spot' || kind === 'featured') && /^\d+$/.test(id || '')) {
-        const patch = kind === 'spot' ? { paid: true, spotlight: true } : { paid: true, featured: true, plan: 'featured' };
-        await db(`displays?id=eq.${id}`, { method: 'PATCH', body: patch });
-      }
+    let session = event.data?.object;
+    if (!session || session.object !== 'checkout.session') {
+      const sid = event.related_object?.id || event.data?.object?.id;
+      session = sid ? await getCheckoutSession(sid) : null;
     }
+    if (!session) {
+      console.error('Webhook: no checkout session in event', JSON.stringify(event).slice(0, 500));
+      return res.status(500).send('No session found in event');
+    }
+    const result = await markPaid(session, db);
+    return res.status(200).send(result);
   } catch (e) {
     console.error('Webhook update failed', e, e.detail || '');
     return res.status(500).send('Update failed');
   }
-  res.status(200).send('ok');
 }
 
 // Tell Vercel not to parse the body so the signature check sees the exact bytes Stripe sent.

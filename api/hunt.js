@@ -8,14 +8,24 @@
 import crypto from 'node:crypto';
 import { db, handler, body, clean, int, etDate, miles, siteUrl, HttpError, COUNTIES } from '../lib/util.js';
 import { FINDS, CHECKIN_POINTS } from '../lib/finds.js';
-import { createCheckout, stripeReady } from '../lib/stripe.js';
+import { createCheckout, stripeReady, getCheckoutSession, markPaid } from '../lib/stripe.js';
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
 async function getTeam(id) {
   if (!UUID.test(id || '')) throw new HttpError(400, 'Missing team. Join or start a team first.');
-  const [t] = await db(`teams?id=eq.${id}&select=id,name,county,code,paid`);
+  const [t] = await db(`teams?id=eq.${id}&select=id,name,county,code,paid,stripe_session`);
   if (!t) throw new HttpError(404, "We couldn't find that team. Start a new one or join with a code.");
+  return t;
+}
+
+// Safety net: if the team paid but Stripe's webhook hasn't arrived, ask Stripe directly.
+async function healPaid(t) {
+  if (t.paid || !t.stripe_session || !stripeReady()) return t;
+  try {
+    const s = await getCheckoutSession(t.stripe_session);
+    if (s && s.payment_status === 'paid' && s.metadata?.id === t.id) { await markPaid(s, db); t.paid = true; }
+  } catch (e) { console.error('healPaid failed', e); }
   return t;
 }
 
@@ -42,7 +52,7 @@ export default handler(async (req, res) => {
     const pub = (t) => ({ name: t.name, county: t.county, points: t.points, me: false });
     out.state = board.slice(0, 25).map(pub);
     if (req.query.team && UUID.test(req.query.team)) {
-      const t = await getTeam(req.query.team);
+      const t = await healPaid(await getTeam(req.query.team));
       const myCounty = county || t.county;
       const [score] = await db(`team_scores?id=eq.${t.id}&select=points`);
       const checks = await db(`checkins?team_id=eq.${t.id}&select=display_id,day,points,displays(name,city,type,spotlight)&order=created_at.desc`);
@@ -87,7 +97,7 @@ export default handler(async (req, res) => {
   }
 
   if (b.action === 'pay') {
-    const team = await getTeam(b.team_id);
+    const team = await healPaid(await getTeam(b.team_id));
     if (team.paid) return { paid: true };
     return { checkoutUrl: await checkout(req, team) };
   }

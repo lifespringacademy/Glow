@@ -969,9 +969,19 @@ function openClaim(id){
 // Links like letsglowwww.com/?listing=12 or /?claim=12 (for outreach emails)
 function deepLink(){
   const p=new URLSearchParams(location.search); const c=+p.get("claim"), l=+p.get("listing");
+  const j=String(p.get("join")||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  if(j.length===6){ history.replaceState(null,"",location.pathname+"#hunt"); joinFromLink(j); return; }
   if(!c && !l) return;
   history.replaceState(null,"",location.pathname+location.hash);
   if(c && D.some(d=>d.id===c)) openClaim(c); else if(l && D.some(d=>d.id===l)) openSheet(l);
+}
+
+// Team link from a "Forgot your team?" email: join that team on this phone
+async function joinFromLink(code){
+  try{ const r=await api("/api/hunt",{method:"POST",body:{action:"join",code}}); H.teamId=r.team_id; store.set("glow-team",r.team_id);
+    if(location.hash!=="#hunt") location.hash="#hunt"; else route();
+    await loadHunt(); toast(`You're on team ${r.name||""}!`); }
+  catch(err){ toast(err.message); }
 }
 
 // ---------- contact form ----------
@@ -1044,6 +1054,12 @@ function renderHunt(){
         <h4 style="margin:0">Already have a team on another phone?</h4>
         <form id="joinTeam" class="row" novalidate><input type="text" id="jtCode" maxlength="6" placeholder="Team code" style="max-width:160px;text-transform:uppercase"><button class="btn" type="submit">Join team</button></form>
         <div id="jtMsg"></div>
+        <button type="button" class="linkbtn" id="forgotTeam" style="justify-self:start">Forgot your team or code?</button>
+        <form id="recoverTeam" novalidate hidden>
+          <div class="note" style="margin-bottom:8px">Enter the email you used when you bought the Hunt Pass. We'll email your team name and code.</div>
+          <div class="row"><input type="email" id="rcEmail" autocomplete="email" placeholder="you@example.com" style="max-width:260px"><button class="btn" type="submit">Email my team</button></div>
+          <div id="rcMsg"></div>
+        </form>
       </div>
       <div class="safety">Passengers only. Check-ins and photos are for when the car is parked.</div>
     </div><aside class="huntside">${boardHtml(data)}${prizeHtml()}</aside></div>`;
@@ -1056,6 +1072,11 @@ function renderHunt(){
     $("#joinTeam").onsubmit=async e=>{ e.preventDefault(); const msg=$("#jtMsg");
       try{ const r=await api("/api/hunt",{method:"POST",body:{action:"join",code:$("#jtCode").value}}); H.teamId=r.team_id; store.set("glow-team",r.team_id); await loadHunt(); toast("You joined the team!"); }
       catch(err){ msg.innerHTML=`<div class="err">${esc(err.message)}</div>`; } };
+    $("#forgotTeam").onclick=()=>{ const f=$("#recoverTeam"); f.hidden=!f.hidden; if(!f.hidden) $("#rcEmail").focus(); };
+    $("#recoverTeam").onsubmit=async e=>{ e.preventDefault(); const msg=$("#rcMsg"), btn=e.target.querySelector("button"); btn.disabled=true;
+      try{ const r=await api("/api/hunt",{method:"POST",body:{action:"recover",email:$("#rcEmail").value}}); msg.innerHTML=`<div class="note" style="color:var(--green)">${esc(r.message)}</div>`; }
+      catch(err){ msg.innerHTML=`<div class="err">${esc(err.message)}</div>`; }
+      btn.disabled=false; };
     bindBoard(); return;
   }
   const t=data.team, checks=data.checkins||[], found=data.found||{};

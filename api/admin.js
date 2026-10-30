@@ -6,6 +6,7 @@
 //                 { action: 'import', rows: [{...}, ...] } (up to 15 rows per call, approved right away)
 //                 { action: 'team_rename', team_id, name } | { action: 'team_hide', team_id, value }
 //                 { action: 'team_paid', team_id, value }  | { action: 'team_delete', team_id }
+//                 { action: 'team_email', team_id, email }
 import crypto from 'node:crypto';
 import { db, handler, body, clean, int, etDate, geocodeNC, HttpError, TYPES, AMENITIES } from '../lib/util.js';
 
@@ -80,7 +81,10 @@ export default handler(async (req) => {
     }
     if (view === 'stats') return stats(req.query.range);
     if (view === 'teams') {
-      return { teams: await db('team_scores?select=id,name,county,paid,points,hidden&order=points.desc&limit=1000') };
+      const teams = await db('team_scores?select=id,name,county,paid,points,hidden&order=points.desc&limit=1000');
+      const extra = await db('teams?select=id,code,email&limit=1000');
+      const byId = Object.fromEntries(extra.map((t) => [t.id, t]));
+      return { teams: teams.map((t) => ({ ...t, code: byId[t.id]?.code || '', email: byId[t.id]?.email || '' })) };
     }
     const filter = view === 'pending' ? 'status=eq.pending&' : view === 'all' ? 'status=neq.rejected&' : '';
     const rows = await db(`displays?${filter}select=*&order=created_at.desc&limit=2000`);
@@ -98,6 +102,10 @@ export default handler(async (req) => {
       const name = clean(b.name, 30);
       if (!name) throw new HttpError(400, 'Enter a team name.');
       await db(where, { method: 'PATCH', body: { name } });
+    } else if (b.action === 'team_email') {
+      const email = String(b.email || '').trim().toLowerCase().slice(0, 120);
+      if (email && !/^\S+@\S+\.\S+$/.test(email)) throw new HttpError(400, "That doesn't look like an email address.");
+      await db(where, { method: 'PATCH', body: { email: email || null } });
     } else if (b.action === 'team_hide') {
       await db(where, { method: 'PATCH', body: { hidden: !!b.value } });
     } else if (b.action === 'team_paid') {

@@ -5,6 +5,7 @@
 //                { action: 'update', team_id, name, county }
 //                { action: 'checkin', team_id, display_id, lat, lon }
 //                { action: 'pay', team_id }                -> new checkout link if they backed out
+//                { action: 'recover', email }              -> emails the team name and code ("Forgot your team?")
 import crypto from 'node:crypto';
 import { db, handler, body, clean, int, etDate, miles, siteUrl, HttpError, COUNTIES } from '../lib/util.js';
 import { FINDS, CHECKIN_POINTS } from '../lib/finds.js';
@@ -104,12 +105,42 @@ export default handler(async (req, res) => {
     return { checkoutUrl: await checkout(req, team) };
   }
 
+  if (b.action === 'recover') {
+    const email = String(b.email || '').trim().toLowerCase().slice(0, 120);
+    if (!/^\S+@\S+\.\S+$/.test(email)) throw new HttpError(400, 'Enter the email you used when you bought the Hunt Pass.');
+    const done = { ok: true, message: "If that email matches a Hunt Pass, we just sent your team name and code. Check your spam folder too." };
+    // At most 3 emails per address per hour, so the form can't be used to flood someone's inbox
+    const since = new Date(Date.now() - 60 * 60000).toISOString();
+    const recent = await db(`team_recovery?email=eq.${encodeURIComponent(email)}&created_at=gt.${since}&select=id`);
+    if (recent.length >= 3) return done;
+    await db('team_recovery', { method: 'POST', body: { email } });
+    const teams = await db(`teams?email=eq.${encodeURIComponent(email)}&select=name,county,code&order=created_at.desc&limit=5`);
+    if (!teams.length) return done;
+    if (!process.env.RESEND_API_KEY) { console.error('recover: RESEND_API_KEY not set'); return done; }
+    const base = siteUrl(req);
+    const list = teams.map((t) => `${t.name} (${t.county} County)\nTeam code: ${t.code}\nOpen it on this phone: ${base}/?join=${t.code}#hunt`).join('\n\n');
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: process.env.CONTACT_FROM || 'Glow <onboarding@resend.dev>',
+          to: [email],
+          subject: teams.length === 1 ? `Your Glow Family Hunt team: ${teams[0].name}` : 'Your Glow Family Hunt teams',
+          text: `Here's your Glow Family Hunt team:\n\n${list}\n\nTap the link on any phone to join the team, or open Glow, go to the Hunt tab and enter the code under "Already have a team on another phone?". Your points are safe.\n\nHappy hunting!\nGlow · letsglowwww.com\n\nDidn't ask for this? You can ignore this email.`
+        })
+      });
+      if (!r.ok) console.error('recover: Resend error', await r.text());
+    } catch (e) { console.error('recover: email failed', e); }
+    return done;
+  }
+
   if (b.action === 'join') {
     const code = String(b.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length !== 6) throw new HttpError(400, 'Team codes are 6 letters and numbers.');
-    const [t] = await db(`teams?code=eq.${code}&select=id`);
+    const [t] = await db(`teams?code=eq.${code}&select=id,name`);
     if (!t) throw new HttpError(404, "That code doesn't match a team. Check it with your family.");
-    return { team_id: t.id };
+    return { team_id: t.id, name: t.name };
   }
 
   if (b.action === 'update') {

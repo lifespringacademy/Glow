@@ -66,6 +66,7 @@ th{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.06em
       <button type="button" data-t="import" aria-pressed="false">Import CSV</button>
       <button type="button" data-t="messages" aria-pressed="false">Messages <span id="msgCount"></span></button>
       <button type="button" data-t="teams" aria-pressed="false">Hunt teams</button>
+      <button type="button" data-t="stats" aria-pressed="false">Stats</button>
       <button type="button" id="signout">Sign out</button>
     </div>
     <div id="view"></div>
@@ -100,6 +101,7 @@ async function load(){
   const v=$("#view"); v.innerHTML=`<div class="note">Loading…</div>`;
   try{
     if(tab==="teams"){ const r=await api("/api/admin?view=teams"); return renderTeams(r.teams); }
+    if(tab==="stats"){ const r=await api("/api/admin?view=stats&range="+statRange); return renderStats(r); }
     if(tab==="messages"){ const r=await api("/api/admin?view=messages"); return renderMessages(r.messages); }
     if(tab==="add"){ return renderForm(null); }
     if(tab==="import"){ return renderImport(); }
@@ -195,8 +197,9 @@ function openEdit(d){
   $("#edelete").onclick=e=>{ const b=e.currentTarget; if(!b.dataset.sure){ b.dataset.sure=1; b.textContent="Tap again to delete for good"; return; } close(); act({action:"delete",id:d.id},"Deleted"); };
 }
 // ---------- outreach email for a business listing ----------
-function outreachText(d){
+function outreachText(d,st){
   const listing=`${SITE}/?listing=${d.id}`, claim=`${SITE}/?claim=${d.id}`;
+  const proof = st && st.view>=10 ? `\nSince October 1, families have viewed ${d.name} on Glow ${st.view.toLocaleString()} times${st.directions?` and tapped for directions ${st.directions.toLocaleString()} times`:""}.\n` : "";
   return {subject:`${d.name} is on Glow, the NC Christmas lights map`,
   body:`Hi ${d.name} team,
 
@@ -204,7 +207,7 @@ I'm ${OWNER_NAME}, and I run Glow (letsglowwww.com), a new map that helps North 
 
 ${d.name} is already on the map, free:
 ${listing}
-
+${proof}
 For $49 for the whole season, you can make it a Featured listing:
 - A gold pin and Featured badge on the map
 - The top spot when families search nearby
@@ -220,8 +223,9 @@ Thanks, and happy holidays!
 ${OWNER_NAME}
 Glow · letsglowwww.com`};
 }
-function openOutreach(d){
-  const t=outreachText(d);
+async function openOutreach(d){
+  let st=null; try{ if(!SEASON) SEASON=await api("/api/admin?view=stats&range=season"); st=SEASON.listings.find(x=>x.id===d.id); }catch(e){}
+  const t=outreachText(d,st);
   const bd=document.createElement("div"); bd.className="backdrop";
   bd.innerHTML=`<div class="modal"><div class="meta" style="justify-content:space-between"><b style="font-size:18px">Outreach email: ${esc(d.name)}</b><button type="button" class="btn" id="oclose">Close</button></div>
     <div class="field"><label class="label" for="osub">Subject</label><input type="text" id="osub" value="${esc(t.subject)}"></div>
@@ -286,8 +290,51 @@ function renderMessages(list){
   document.querySelectorAll("[data-handled]").forEach(b=>b.onclick=()=>act({action:"handled",id:+b.dataset.handled,value:b.dataset.v==="1"},"Saved"));
 }
 function renderTeams(teams){
-  $("#view").innerHTML=`<div class="meta"><span>${teams.filter(t=>t.paid).length} paid teams · ${teams.length} total</span></div><div class="tablebox" style="margin-top:12px"><table><thead><tr><th>#</th><th>Team</th><th>County</th><th>Points</th><th>Hunt Pass</th></tr></thead><tbody>
-  ${teams.map((t,i)=>`<tr><td>${i+1}</td><td>${esc(t.name)}</td><td>${esc(t.county)}</td><td>${t.points}</td><td>${t.paid?'<span class="badge b-paid">Paid</span>':'<span class="note">Not paid</span>'}</td></tr>`).join("")||`<tr><td colspan="5" class="note">No teams yet.</td></tr>`}</tbody></table></div>`;
+  const shown=teams.filter(t=>t.paid&&!t.hidden).length, hidden=teams.filter(t=>t.hidden).length;
+  $("#view").innerHTML=`<div class="meta"><span>${teams.filter(t=>t.paid).length} paid teams · ${teams.length} total${hidden?` · ${hidden} hidden`:""}</span></div>
+  <div class="note" style="margin-top:6px">Hidden teams keep playing and keep their points, but they don't appear on any leaderboard. Rename a team if its name isn't family friendly.</div>
+  <div class="tablebox" style="margin-top:12px"><table><thead><tr><th>#</th><th>Team</th><th>County</th><th>Points</th><th>Hunt Pass</th><th>Actions</th></tr></thead><tbody>
+  ${teams.map((t,i)=>`<tr${t.hidden?' style="opacity:.6"':""}><td>${i+1}</td><td>${esc(t.name)}${t.hidden?' <span class="badge b-no">Hidden</span>':""}</td><td>${esc(t.county)}</td><td>${t.points}</td><td>${t.paid?'<span class="badge b-paid">Paid</span>':'<span class="note">Not paid</span>'}</td>
+  <td><div class="actions"><button class="btn" data-trename="${t.id}" data-name="${esc(t.name)}">Rename</button><button class="btn" data-thide="${t.id}" data-v="${t.hidden?0:1}">${t.hidden?"Show":"Hide"}</button><button class="btn" data-tpaid="${t.id}" data-v="${t.paid?0:1}">${t.paid?"Mark unpaid":"Mark paid"}</button><button class="btn danger" data-tdel="${t.id}" data-name="${esc(t.name)}">Delete</button></div></td></tr>`).join("")||`<tr><td colspan="6" class="note">No teams yet.</td></tr>`}</tbody></table></div>`;
+  const teamAct=async(body,msg)=>{ try{ await api("/api/admin",{method:"POST",body}); toast(msg); load(); }catch(err){ toast(err.message); } };
+  document.querySelectorAll("[data-trename]").forEach(b=>b.onclick=()=>{ const n=prompt("New team name (30 characters max):",b.dataset.name); if(n&&n.trim()) teamAct({action:"team_rename",team_id:b.dataset.trename,name:n.trim()},"Team renamed"); });
+  document.querySelectorAll("[data-thide]").forEach(b=>b.onclick=()=>teamAct({action:"team_hide",team_id:b.dataset.thide,value:b.dataset.v==="1"},b.dataset.v==="1"?"Team hidden from leaderboards":"Team is back on the leaderboards"));
+  document.querySelectorAll("[data-tpaid]").forEach(b=>b.onclick=()=>teamAct({action:"team_paid",team_id:b.dataset.tpaid,value:b.dataset.v==="1"},b.dataset.v==="1"?"Marked paid":"Marked unpaid"));
+  document.querySelectorAll("[data-tdel]").forEach(b=>b.onclick=()=>{ if(confirm(`Delete "${b.dataset.name}" and all its points? This can't be undone.`)) teamAct({action:"team_delete",team_id:b.dataset.tdel},"Team deleted"); });
+}
+// ---------- Stats tab ----------
+let statRange="30", SEASON=null, statSort="view";
+const EV=[["view","Views"],["pin","Map taps"],["directions","Directions"],["website","Website"],["tour","Tour adds"]];
+function fmtDay(iso){ const [y,m,d]=iso.split("-").map(Number); return new Date(y,m-1,d).toLocaleDateString("en-US",{month:"short",day:"numeric"}); }
+function statSummary(d,r){
+  const label=r.range==="season"?`since ${fmtDay(r.from)}`:`${fmtDay(r.from)} to ${fmtDay(r.to)}`;
+  return `${d.name} on Glow, ${label}:\n- ${d.view.toLocaleString()} listing views\n- ${d.pin.toLocaleString()} map pin taps\n- ${d.directions.toLocaleString()} taps for directions\n${d.url?`- ${d.website.toLocaleString()} clicks to your website or tickets\n`:""}- Added to ${d.tour.toLocaleString()} family tour plans\n\nThanks for being part of Glow!\n${OWNER_NAME} · letsglowwww.com`;
+}
+function renderStats(r){
+  r.range=statRange;
+  const max=Math.max(1,...r.daily.map(x=>x.view));
+  const W=Math.max(1,r.daily.length), bw=100/W;
+  const bars=r.daily.map((x,i)=>{ const h=x.view/max*100; return `<rect x="${(i*bw+bw*0.15).toFixed(2)}%" y="${(100-h).toFixed(2)}%" width="${(bw*0.7).toFixed(2)}%" height="${h.toFixed(2)}%" rx="2" fill="var(--amber)"><title>${fmtDay(x.day)}: ${x.view} views, ${x.directions} directions</title></rect>`; }).join("");
+  const list=[...r.listings].sort((a,b)=>b[statSort]-a[statSort]||b.view-a.view);
+  $("#view").innerHTML=`
+  <div class="meta" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div class="tabs" id="srange">${[["7","Last 7 days"],["30","Last 30 days"],["season","This season"]].map(([v,l])=>`<button type="button" data-r="${v}" aria-pressed="${statRange===v}">${l}</button>`).join("")}</div>
+    <span class="note">${fmtDay(r.from)} – ${fmtDay(r.to)} · each phone counts once per listing per day</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px">
+    ${EV.map(([k,l])=>`<div class="card" style="padding:14px"><div class="note">${l}</div><div style="font-size:28px;font-weight:700">${(r.totals[k]||0).toLocaleString()}</div></div>`).join("")}
+  </div>
+  <div class="card" style="margin-top:12px"><div class="meta" style="justify-content:space-between"><b>Listing views per day</b><span class="note">Busiest day: ${max>1||r.daily.some(x=>x.view)?`${fmtDay(r.daily.reduce((a,b)=>b.view>a.view?b:a).day)} (${max.toLocaleString()})`:"none yet"}</span></div>
+    <svg width="100%" height="140" role="img" aria-label="Listing views per day" style="display:block;margin-top:8px">${bars}</svg>
+    <div class="meta" style="justify-content:space-between"><span class="note">${fmtDay(r.from)}</span><span class="note">${fmtDay(r.to)}</span></div>
+  </div>
+  <div class="tablebox" style="margin-top:12px"><table><thead><tr><th>#</th><th>Display</th>${EV.map(([k,l])=>`<th><button type="button" class="linkish" data-sort="${k}" style="background:none;border:0;color:${statSort===k?"var(--amber)":"inherit"};font:inherit;cursor:pointer;padding:0">${l}${statSort===k?" ↓":""}</button></th>`).join("")}<th></th></tr></thead><tbody>
+  ${list.map((d,i)=>`<tr><td>${i+1}</td><td><b>${esc(d.name)}</b><div class="note">${esc(d.city)} · ${esc(TYPES[d.type]||d.type)}${d.featured?' · <span style="color:var(--gold)">Featured</span>':""}${d.spotlight?' · <span style="color:var(--copper)">Spotlight</span>':""}</div></td>${EV.map(([k])=>`<td>${d[k].toLocaleString()}</td>`).join("")}<td><button class="btn" data-ssum="${d.id}">Copy summary</button></td></tr>`).join("")||`<tr><td colspan="8" class="note">No activity yet. Numbers appear as people open listings, tap pins and get directions.</td></tr>`}
+  </tbody></table></div>
+  <div class="note" style="margin-top:8px">"Copy summary" gives you a short stats message to send a business, for example a Featured listing at the end of the month.</div>`;
+  $("#srange").onclick=e=>{ const b=e.target.closest("[data-r]"); if(!b) return; statRange=b.dataset.r; load(); };
+  document.querySelectorAll("[data-sort]").forEach(b=>b.onclick=()=>{ statSort=b.dataset.sort; renderStats(r); });
+  document.querySelectorAll("[data-ssum]").forEach(b=>b.onclick=async()=>{ const d=r.listings.find(x=>x.id===+b.dataset.ssum); try{ await navigator.clipboard.writeText(statSummary(d,r)); toast("Summary copied"); }catch(e){ toast("Couldn't copy. Try again."); } });
 }
 if(KEY) api("/api/admin?view=pending").then(start).catch(()=>{ KEY=""; });
 </script>

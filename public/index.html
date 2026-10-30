@@ -451,6 +451,8 @@ body.is-map .installpop, body.is-welcome .installpop{display:none!important}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- Vercel Web Analytics (overall visits). Turn it on in Vercel: your project > Analytics > Enable -->
+<script defer src="/_vercel/insights/script.js"></script>
 <script>
 // ===== Settings you may want to change =====
 const PRIZE_TEXT = "Leaders will be announced on Glow's social media throughout the season. The grand prize winner will receive a family fun gift basket!";
@@ -596,13 +598,14 @@ function renderMap(list){
 }
 function showPin(id){
   const d=withDist(D).find(x=>x.id===id); if(!d) return;
+  track(id,"pin");
   const w=waitOf(d), t=typeOf(d), inT=S.tour.includes(id), card=$("#pinCard");
   card.innerHTML=`<button type="button" class="x" aria-label="Close" data-pinclose>×</button>
     <div class="meta">${d.featured?`<span class="badge b-feat">★ Featured</span>`:""}${d.spotlight?`<span class="badge b-spot">✦ Homeowner Pick</span>`:""}<span class="badge b-type"><span class="dot" style="background:${t.color};box-shadow:0 0 6px ${t.color}"></span>${t.label}</span>${d.lights_out?`<span class="badge b-off">Lights off for now</span>`:""}</div>
     <h3>${esc(d.name)}</h3>
     <div class="meta"><span>${esc(d.city)}${d.dist!=null?` · ${d.dist.toFixed(0)} mi`:""}</span><span>${d.cost==="free"?"Free":esc(d.price||"Paid")}</span>${d.hours?`<span>${esc(d.hours)}</span>`:""}</div>
     ${w?`<div>${waitChip(w)}</div>`:""}
-    <div class="actions"><button type="button" class="btn ${inT?"in":"primary"}" data-pintour="${d.id}">${inT?"✓ In your tour":"+ Add to tour"}</button><a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}&travelmode=driving" target="_blank" rel="noopener">Directions</a><button type="button" class="btn" data-open="${d.id}">Details</button></div>`;
+    <div class="actions"><button type="button" class="btn ${inT?"in":"primary"}" data-pintour="${d.id}">${inT?"✓ In your tour":"+ Add to tour"}</button><a class="btn" data-stat="directions" data-sid="${d.id}" href="https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}&travelmode=driving" target="_blank" rel="noopener">Directions</a><button type="button" class="btn" data-open="${d.id}">Details</button></div>`;
   card.hidden=false;
 }
 
@@ -811,10 +814,31 @@ function gmapsUrl(o){
   return `https://www.google.com/maps/dir/?api=1${origin?`&origin=${origin}`:""}&destination=${dest}${way?`&waypoints=${encodeURIComponent(way)}`:""}&travelmode=driving`;
 }
 function hm(min){ min=Math.round(min); const h=Math.floor(min/60), m=min%60; return h? `${h} hr ${m} min` : `${m} min`; }
+// ---------- listing stats ----------
+// Counts views, map taps, directions, website clicks and tour adds per listing per day.
+// No personal info: each phone counts once per listing, per action, per day.
+const STAT_Q=[]; let statTimer=null;
+function track(id,ev){
+  id=+id; if(!id) return;
+  const key="glow-st-"+new Date().toLocaleDateString("en-CA",{timeZone:"America/New_York"});
+  let seen={}; try{ seen=JSON.parse(localStorage.getItem(key)||"{}"); }catch(e){}
+  if(seen[id+ev]) return; seen[id+ev]=1;
+  try{ localStorage.setItem(key,JSON.stringify(seen)); for(let i=localStorage.length-1;i>=0;i--){ const k=localStorage.key(i); if(k&&k.startsWith("glow-st-")&&k!==key) localStorage.removeItem(k); } }catch(e){}
+  STAT_Q.push({id,e:ev}); clearTimeout(statTimer); statTimer=setTimeout(flushStats,1500);
+}
+function flushStats(){
+  if(!STAT_Q.length) return; const events=STAT_Q.splice(0,40);
+  const body=JSON.stringify({events});
+  try{ if(navigator.sendBeacon && navigator.sendBeacon("/api/stats",new Blob([body],{type:"application/json"}))) return; }catch(e){}
+  fetch("/api/stats",{method:"POST",headers:{"Content-Type":"application/json"},body,keepalive:true}).catch(()=>{});
+}
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="hidden") flushStats(); });
+document.addEventListener("click",e=>{ const a=e.target.closest("[data-stat]"); if(a) String(a.dataset.sid||"").split(",").forEach(id=>track(id,a.dataset.stat)); flushStats(); },true);
+
 function toggleTour(id){
   const i=S.tour.indexOf(id);
   if(i>=0){ S.tour.splice(i,1); toast("Removed from your tour"); }
-  else { if(S.tour.length>=10){ toast("A tour can hold 10 stops"); return; } S.tour.push(id); toast("Added to your tour"); }
+  else { if(S.tour.length>=10){ toast("A tour can hold 10 stops"); return; } S.tour.push(id); track(id,"tour"); toast("Added to your tour"); }
   saveTour(); renderAll();
 }
 function renderTour(){
@@ -826,7 +850,7 @@ function renderTour(){
   if(o.st) h+=`<div class="stop"><span class="num start">S</span><div><b>Start from ${esc(o.st.name)}</b></div><span></span></div>`;
   o.stops.forEach((d,i)=>{ const leg=t.legs[o.st?i:i-1], w=waitOf(d);
     h+=`<div class="stop"><span class="num">${i+1}</span><div style="min-width:0"><b>${esc(d.name)}</b><div class="leg">${esc(d.city)} · ${d.cost==="free"?"Free":esc(d.price||"Paid")}${leg!=null?` · ${leg.toFixed(0)} mi from previous`:""}</div>${w?`<div style="margin-top:4px">${waitChip(w)}</div>`:""}</div><button type="button" class="small" data-rm="${d.id}" aria-label="Remove ${esc(d.name)}">Remove</button></div>`; });
-  h+=`</div><div class="actions" style="margin-top:12px"><a class="btn primary" href="${gmapsUrl(o)}" target="_blank" rel="noopener">Open route in Google Maps</a><button type="button" class="btn" id="shareTour">Share tour</button><button type="button" class="btn" id="clearTour">Clear tour</button></div>
+  h+=`</div><div class="actions" style="margin-top:12px"><a class="btn primary" data-stat="directions" data-sid="${o.stops.map(x=>x.id).join(",")}" href="${gmapsUrl(o)}" target="_blank" rel="noopener">Open route in Google Maps</a><button type="button" class="btn" id="shareTour">Share tour</button><button type="button" class="btn" id="clearTour">Clear tour</button></div>
   <p class="note">Miles are estimated. Google Maps gives exact directions.</p>`;
   body.innerHTML=h;
   body.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>toggleTour(+b.dataset.rm));
@@ -853,6 +877,7 @@ function getLocation(){
 // ---------- detail sheet ----------
 function openSheet(id){
   const d=D.find(x=>x.id===id); if(!d) return;
+  track(id,"view");
   const w=waitOf(d), mine=myRatings[id]||0, inT=S.tour.includes(id), c=center(), t=typeOf(d);
   const dist = c? miles(c,[d.lat,d.lon])*ROAD : null;
   const pts = d.spotlight?20:10+(d.featured?5:0);
@@ -873,8 +898,8 @@ function openSheet(id){
       <div><button type="button" class="btn primary" id="shCheck">Check in here</button></div></div>
     ${canFeature(d)?`<div class="box" style="border-color:#6E5A1C"><h4>Run this business or event?</h4><div class="note">Get a gold pin, the top spot in nearby results, a ticket button and a Family Hunt bonus that sends families your way. $49 for the season.</div><div><button type="button" class="btn" id="shClaim">★ Feature this listing</button></div></div>`:""}
     <div class="actions"><button type="button" class="btn ${inT?"in":"primary"}" id="shTour">${inT?"✓ In your tour":"+ Add to tour"}</button>
-      <a class="btn" href="https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}&travelmode=driving" target="_blank" rel="noopener">Directions</a>
-      <button type="button" class="btn" id="shShare">Share</button>${d.url?`<a class="btn" href="${esc(d.url)}" target="_blank" rel="noopener">${d.cost==="paid"?"Buy tickets":"Website"}</a>`:""}</div>
+      <a class="btn" data-stat="directions" data-sid="${d.id}" href="https://www.google.com/maps/dir/?api=1&destination=${d.lat},${d.lon}&travelmode=driving" target="_blank" rel="noopener">Directions</a>
+      <button type="button" class="btn" id="shShare">Share</button>${d.url?`<a class="btn" data-stat="website" data-sid="${d.id}" href="${esc(d.url)}" target="_blank" rel="noopener">${d.cost==="paid"?"Buy tickets":"Website"}</a>`:""}</div>
     <div class="note"><button type="button" class="linkbtn" id="shReport">Report this listing</button> · Wrong info, or your home listed without permission?</div>
   </div>`;
   document.body.appendChild(bd);

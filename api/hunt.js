@@ -8,7 +8,8 @@
 import crypto from 'node:crypto';
 import { db, handler, body, clean, int, etDate, miles, siteUrl, HttpError, COUNTIES } from '../lib/util.js';
 import { FINDS, CHECKIN_POINTS } from '../lib/finds.js';
-import { createCheckout, stripeReady, getCheckoutSession, markPaid } from '../lib/stripe.js';
+import { teamNameOk, NAME_REJECTED } from '../lib/names.js';
+import { createCheckout, stripeReady, getCheckoutSession, markPaid, isPaid } from '../lib/stripe.js';
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -24,7 +25,7 @@ async function healPaid(t) {
   if (t.paid || !t.stripe_session || !stripeReady()) return t;
   try {
     const s = await getCheckoutSession(t.stripe_session);
-    if (s && s.payment_status === 'paid' && s.metadata?.id === t.id) { await markPaid(s, db); t.paid = true; }
+    if (s && isPaid(s) && s.metadata?.id === t.id) { await markPaid(s, db); t.paid = true; }
   } catch (e) { console.error('healPaid failed', e); }
   return t;
 }
@@ -48,7 +49,7 @@ export default handler(async (req, res) => {
   if (req.method === 'GET') {
     const county = COUNTIES.includes(req.query.county) ? req.query.county : null;
     const out = { finds: FINDS.map(({ id, name, pts }) => ({ id, name, pts })), counties: COUNTIES, paymentsReady: stripeReady() };
-    const board = await db('team_scores?paid=eq.true&select=id,name,county,points&order=points.desc,name.asc&limit=500');
+    const board = await db('team_scores?paid=eq.true&hidden=eq.false&select=id,name,county,points&order=points.desc,name.asc&limit=500');
     const pub = (t) => ({ name: t.name, county: t.county, points: t.points, me: false });
     out.state = board.slice(0, 25).map(pub);
     if (req.query.team && UUID.test(req.query.team)) {
@@ -84,6 +85,7 @@ export default handler(async (req, res) => {
     const county = COUNTIES.includes(b.county) ? b.county : null;
     if (!name) throw new HttpError(400, 'Give your team a name.');
     if (!county) throw new HttpError(400, 'Pick your home county.');
+    if (!(await teamNameOk(name))) throw new HttpError(400, NAME_REJECTED);
     const free = !stripeReady() && process.env.HUNT_FREE_MODE === 'true';
     let team;
     for (let i = 0; i < 4 && !team; i++) {
@@ -114,7 +116,10 @@ export default handler(async (req, res) => {
     const team = await getTeam(b.team_id);
     const patch = {};
     const name = clean(b.name, 30);
-    if (name) patch.name = name;
+    if (name && name !== team.name) {
+      if (!(await teamNameOk(name))) throw new HttpError(400, NAME_REJECTED);
+      patch.name = name;
+    }
     if (COUNTIES.includes(b.county)) patch.county = b.county;
     if (Object.keys(patch).length) await db(`teams?id=eq.${team.id}`, { method: 'PATCH', body: patch });
     return { ok: true };

@@ -1,11 +1,13 @@
 // Admin API — every call needs the header  x-admin-key: <ADMIN_KEY env var>
-// GET  /api/admin?view=pending|all|teams
+// GET  /api/admin?view=pending|all|teams|messages|stats (stats: &range=7|30|season)
 // POST /api/admin { action: 'approve'|'reject'|'delete', id }
 //                 { action: 'update', id, fields: {...} }
 //                 { action: 'create', fields: {...} }   (added by you, approved right away)
 //                 { action: 'import', rows: [{...}, ...] } (up to 15 rows per call, approved right away)
+//                 { action: 'team_rename', team_id, name } | { action: 'team_hide', team_id, value }
+//                 { action: 'team_paid', team_id, value }  | { action: 'team_delete', team_id }
 import crypto from 'node:crypto';
-import { db, handler, body, clean, int, geocodeNC, HttpError, TYPES, AMENITIES } from '../lib/util.js';
+import { db, handler, body, clean, int, etDate, geocodeNC, HttpError, TYPES, AMENITIES } from '../lib/util.js';
 
 function checkKey(req) {
   const want = process.env.ADMIN_KEY || '';
@@ -42,6 +44,33 @@ function pick(f = {}) {
   return out;
 }
 
+const EVENTS = ['view', 'pin', 'directions', 'website', 'tour'];
+function addDays(iso, n) { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
+// Listing stats for the admin Stats tab
+async function stats(range) {
+  const today = etDate();
+  let from;
+  if (range === 'season') {
+    const [y, m] = today.split('-').map(Number);
+    from = `${m >= 7 ? y : y - 1}-10-01`; // the season runs from Oct 1
+  } else from = addDays(today, -((range === '7' ? 7 : 30) - 1));
+  const rows = await db(`display_stats?day=gte.${from}&select=display_id,day,event,n&limit=100000`);
+  const ids = [...new Set(rows.map((r) => r.display_id))];
+  const names = ids.length ? await db(`displays?id=in.(${ids.join(',')})&select=id,name,city,type,featured,spotlight,paid,plan,status,url,claim_email,submitter_email`) : [];
+  const byId = Object.fromEntries(names.map((d) => [d.id, { ...d, view: 0, pin: 0, directions: 0, website: 0, tour: 0 }]));
+  const days = {};
+  for (let d = from; d <= today; d = addDays(d, 1)) days[d] = Object.fromEntries(EVENTS.map((e) => [e, 0]));
+  const totals = Object.fromEntries(EVENTS.map((e) => [e, 0]));
+  for (const r of rows) {
+    if (byId[r.display_id]) byId[r.display_id][r.event] += r.n;
+    if (days[r.day]) days[r.day][r.event] += r.n;
+    totals[r.event] += r.n;
+  }
+  const listings = Object.values(byId).sort((a, b) => b.view - a.view || b.directions - a.directions);
+  return { from, to: today, totals, daily: Object.entries(days).map(([day, v]) => ({ day, ...v })), listings };
+}
+
 export default handler(async (req) => {
   checkKey(req);
   if (req.method === 'GET') {
@@ -49,8 +78,9 @@ export default handler(async (req) => {
     if (view === 'messages') {
       return { messages: await db('contact_messages?select=id,name,email,topic,message,emailed,handled,created_at,display_id,displays(name,city)&order=created_at.desc&limit=500') };
     }
+    if (view === 'stats') return stats(req.query.range);
     if (view === 'teams') {
-      return { teams: await db('team_scores?select=id,name,county,paid,points&order=points.desc&limit=1000') };
+      return { teams: await db('team_scores?select=id,name,county,paid,points,hidden&order=points.desc&limit=1000') };
     }
     const filter = view === 'pending' ? 'status=eq.pending&' : view === 'all' ? 'status=neq.rejected&' : '';
     const rows = await db(`displays?${filter}select=*&order=created_at.desc&limit=2000`);
@@ -59,6 +89,24 @@ export default handler(async (req) => {
   if (req.method !== 'POST') throw new HttpError(405, 'Method not allowed');
   const b = body(req);
   const id = int(b.id);
+
+  if (String(b.action || '').startsWith('team_')) {
+    const tid = String(b.team_id || '');
+    if (!/^[0-9a-f-]{36}$/i.test(tid)) throw new HttpError(400, 'Missing team.');
+    const where = `teams?id=eq.${tid}`;
+    if (b.action === 'team_rename') {
+      const name = clean(b.name, 30);
+      if (!name) throw new HttpError(400, 'Enter a team name.');
+      await db(where, { method: 'PATCH', body: { name } });
+    } else if (b.action === 'team_hide') {
+      await db(where, { method: 'PATCH', body: { hidden: !!b.value } });
+    } else if (b.action === 'team_paid') {
+      await db(where, { method: 'PATCH', body: { paid: !!b.value } });
+    } else if (b.action === 'team_delete') {
+      await db(where, { method: 'DELETE' });
+    } else throw new HttpError(400, 'Unknown action');
+    return { ok: true };
+  }
 
   if (b.action === 'approve' || b.action === 'reject') {
     await db(`displays?id=eq.${id}`, { method: 'PATCH', body: { status: b.action === 'approve' ? 'approved' : 'rejected' } });
